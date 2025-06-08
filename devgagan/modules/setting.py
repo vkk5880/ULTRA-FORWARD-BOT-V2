@@ -95,33 +95,19 @@ async def display_channel_settings(bot, query):
     )
 
 @Client.on_callback_query(filters.regex(r'^settings#addchannel'))
-async def prompt_add_channel_type(bot, query):
-    """Prompts the user to choose between adding a channel or a group."""
-    await query.message.delete()
-    choice_buttons = [
-        [InlineKeyboardButton('📢 Channel', callback_data='add_channel_type#channel')],
-        [InlineKeyboardButton('👥 Group', callback_data='add_channel_type#group')],
-        [InlineKeyboardButton('❌ Cancel', callback_data='settings#channels')]
-    ]
-    await query.message.reply_text(
-        "<b>What type of chat do you want to add?</b>",
-        reply_markup=InlineKeyboardMarkup(choice_buttons)
-    )
-
-@Client.on_callback_query(filters.regex(r'add_channel_type#(channel|group)'))
 async def process_add_chat(bot, query):
     """Processes the addition of a new channel or group."""
     user_id = query.from_user.id
-    chat_type = query.data.split("#")[1]
     await query.message.delete()
     try:
         instruction_text = await bot.send_message(
             user_id,
-            f"<b><u>Set Target {'Channel' if chat_type == 'channel' else 'Group'}</u></b>\n\n"
-            "You can:\n"
-            "1. Forward a message from the chat\n"
-            "2. Send the chat username (e.g., @username)\n"
-            "3. Send the chat ID\n\n"
+            "<b><u>Add Channel or Group or User</u></b>\n\n"
+            "If it's a **public chat**, please send its **invite link**.\n"
+            "If it's a **private chat**, please send its **username** (e.g., `@my_private_chat`) or **numeric ID**.\n\n"
+            "**Important:**\n"
+            "- For **private chats**, make me an **admin** in the chat.\n"
+            "- If you're using a **user bot**, it must have **started** your bot to function correctly.\n\n"
             "/cancel - To Cancel This Process"
         )
 
@@ -137,37 +123,39 @@ async def process_add_chat(bot, query):
         chat_id = None
         title = None
         username = "private"
+        chat_type_str = ""
 
-        if chat_input_msg.forward_from_chat:
-            chat_info = chat_input_msg.forward_from_chat
-            chat_id = chat_info.id
-            title = chat_info.title
-            username = "@" + chat_info.username if chat_info.username else \
-                       "private_channel" if chat_type == "channel" else "private_group"
-        elif chat_input_msg.text:
+        if chat_input_msg.text:
             input_text = chat_input_msg.text.strip()
             try:
-                if input_text.startswith('@'):
+                if input_text.startswith(('http://t.me/', 'https://t.me/', '@')) or input_text.lstrip('-').isdigit():
                     chat = await bot.get_chat(input_text)
-                elif input_text.lstrip('-').isdigit():
-                    chat = await bot.get_chat(int(input_text))
+
+                    chat_id = chat.id
+                    title = chat.title
+                    username = "@" + chat.username if chat.username else \
+                               "private_group" if chat.type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP] else "private_channel"
+                    chat_type_str = "channel" if chat.type == enums.ChatType.CHANNEL else "group"
                 else:
                     await chat_input_msg.delete()
-                    return await instruction_text.edit_text("Invalid input. Please send username starting with @ or numeric ID",
-                                                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#channels")]]))
+                    return await instruction_text.edit_text(
+                        "Invalid input. Please send an invite link (for public chats) or a username/numeric ID (for private chats).",
+                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#channels")]])
+                    )
 
-                chat_id = chat.id
-                title = chat.title
-                username = "@" + chat.username if chat.username else \
-                           "private_group" if chat.type in [enums.ChatType.GROUP, enums.ChatType.SUPERGROUP] else "private_channel"
             except Exception:
                 await chat_input_msg.delete()
-                return await instruction_text.edit_text("Invalid username/ID or bot doesn't have access.",
-                                                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#channels")]]))
+                return await instruction_text.edit_text(
+                    "Invalid input, invite link, username/ID, or bot doesn't have access. "
+                    "Remember, for private chats, the bot needs to be an admin.",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#channels")]])
+                )
         else:
             await chat_input_msg.delete()
-            return await instruction_text.edit_text("Invalid input. Please forward a message or send username/ID.",
-                                                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#channels")]]))
+            return await instruction_text.edit_text(
+                "Invalid input. Please send an invite link, username, or ID.",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#channels")]])
+            )
 
         added_chat = await db.add_channel(
             user_id=user_id,
@@ -178,16 +166,24 @@ async def process_add_chat(bot, query):
 
         await chat_input_msg.delete()
         await instruction_text.edit_text(
-            f"Successfully added {'channel' if chat_type == 'channel' else 'group'}!" if added_chat else "This chat already exists in your list.",
+            f"Successfully added {chat_type_str}!" if added_chat else "This chat already exists in your list.",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#channels")]])
         )
 
     except asyncio.exceptions.TimeoutError:
-        await instruction_text.edit_text('Process timed out.',
-                                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#channels")]]))
+        await instruction_text.edit_text(
+            'Process timed out.',
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#channels")]])
+        )
     except Exception as e:
-        await instruction_text.edit_text(f'Error: {str(e)}',
-                                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#channels")]]))
+        await instruction_text.edit_text(
+            f'Error: {str(e)}',
+            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#channels")]])
+        )
+
+
+
+
 
 @Client.on_callback_query(filters.regex(r'^settings#editbot'))
 async def display_bot_details(bot, query):
