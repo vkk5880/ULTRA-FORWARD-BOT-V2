@@ -1,5 +1,7 @@
 import re
 import asyncio
+import time
+
 from database import db
 from config import temp
 from translation import Translation
@@ -11,31 +13,29 @@ from pyrogram.errors.exceptions.bad_request_400 import (
     ChatAdminRequired,
     UsernameInvalid,
     UsernameNotModified,
-    ChannelPrivate,
     PeerIdInvalid
 )
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
 
+from devgagan.core.get_func import start_forwarding
+from .utils import get_readable_time
 
-from .utils import STS, get_readable_time
-
-# ===================Run Function===================#
 
 @Client.on_message(filters.private & filters.command(["fwd", "forward"]))
 async def run(bot, message):
     user_id = message.from_user.id
-    _bot = await db.get_bot(user_id) #_bot, caption, forward_tag, data, protect, button = await sts.get_data(user)
+    _bot = await db.get_bot(user_id)
 
     if not _bot:
         initial_msg = await message.reply("You haven't added any bots yet. Please add a bot using /settings before trying to forward messages.")
-        await asyncio.sleep(5) # Give user time to read
+        await asyncio.sleep(5)
         await initial_msg.delete()
         return
 
     channels = await db.get_user_channels(user_id)
     if not channels:
         initial_msg = await message.reply_text("Please set a **target channel** in /settings before you can start forwarding messages.")
-        await asyncio.sleep(5) # Give user time to read
+        await asyncio.sleep(5)
         await initial_msg.delete()
         return
 
@@ -55,9 +55,13 @@ async def run(bot, message):
             reply_markup=ReplyKeyboardMarkup(buttons, one_time_keyboard=True, resize_keyboard=True)
         )
         try:
-            _toid_response = await bot.listen(message.chat.id, filters.text, timeout=120)
-            await choose_target_msg.delete() # Delete bot's message
-            await _toid_response.delete() # Delete user's message
+            _toid_response = await bot.listen(
+                message.chat.id,
+                filters.text & filters.user(user_id),
+                timeout=120
+            )
+            await choose_target_msg.delete()
+            await _toid_response.delete()
 
             if _toid_response.text.lower() == 'cancel' or _toid_response.text.startswith('/'):
                 cancel_msg = await message.reply_text(Translation.CANCEL, reply_markup=ReplyKeyboardRemove())
@@ -92,23 +96,28 @@ async def run(bot, message):
     chat_id = None
     last_msg_id = None
     source_chat_title = "Unknown Chat"
+    is_forwarded_msg = False
 
-    # Ask for source message/link
     instruction_text = await message.reply_text(
-        "**To start, Please send the start link.\n\n> Maximum tries 3**\n\n"
+        "**To start, please send the start link or forward a message.**\n\n"
         "You can either:\n"
-        "**Forward a message from the source chat** (from a bot or user).\n"
-        "**Important for Private Chats:**\n"
+        "1. **Forward a message from the source chat** (from a bot or user).\n"
+        "2. **Send a link to the message within the chat** (e.g., `https://t.me/my_public_channel/123`).\n\n"
+        "**Important for Private Channels/Groups/User Forwards:**\n"
         "- If it's a **private chat**, the bot you added in /settings **must be an admin** in that chat.\n"
         "- If you're forwarding from a **user or bot**, you must have **login**  using /login or go to /settings to add user bot\n\n"
         "Type `/cancel` to stop this process.",
-        reply_markup=ReplyKeyboardRemove() # Ensure keyboard is removed
+        reply_markup=ReplyKeyboardRemove()
     )
 
     try:
-        source_input_msg = await bot.listen(message.chat.id, timeout=300)
-        await instruction_text.delete() # Delete bot's instruction message
-        await source_input_msg.delete() # Delete user's input message
+        source_input_msg = await bot.listen(
+            message.chat.id,
+            filters.user(user_id),
+            timeout=300
+        )
+        await instruction_text.delete()
+        await source_input_msg.delete()
 
         if source_input_msg.text and source_input_msg.text.startswith('/cancel'):
             cancel_msg = await message.reply(Translation.CANCEL)
@@ -116,7 +125,6 @@ async def run(bot, message):
             await cancel_msg.delete()
             return
 
-        # Case 1: Message was forwarded
         if source_input_msg.forward_from_chat:
             fwd_chat = source_input_msg.forward_from_chat
             chat_id = fwd_chat.id
@@ -124,44 +132,36 @@ async def run(bot, message):
             last_msg_id = source_input_msg.forward_from_message_id
 
             if last_msg_id is None:
-                # This can happen if forwarded from an anonymous admin in a group
                 await message.reply_text(
-                    "This looks like a forwarded message from an anonymous admin where the original message ID is hidden. "
+                    "This looks like a forwarded message where the original message ID is hidden. "
+                    "Please try sending a direct link to the message instead (e.g., `https://t.me/channel_name/message_id`)."
                 )
-                await asyncio.sleep(5)
-                return await message.delete() # Clean up
-            # Verify _bot has Access or user bot  ---
+                await asyncio.sleep(7)
+                return
 
-        # Case 2: Text input (link, username, or ID)
+            is_forwarded_msg = True
         elif source_input_msg.text:
             input_text = source_input_msg.text.strip()
 
-            # Regex for links
-            regex_link = re.compile(r"(https?://)?(t\.me/|telegram\.me/|telegram\.dog/)(c/)?(\d+|[a-zA-Z_0-9]+)/?(\d+)?$")
+            # Regex to correctly parse channel links with numeric ID or username AND message ID
+            regex_link = re.compile(r"(https?://)?(t\.me/|telegram\.me/|telegram\.dog/)(c/)?([a-zA-Z0-9_]+)/(\d+)$")
             match_link = regex_link.match(input_text)
 
             if match_link:
-                # Extract message ID if present in link, otherwise invalid 
-                if match_link.group(5):
-                    last_msg_id = int(match_link.group(5))
-                else:
-                    invalid_input_msg = await message.reply_text("Invalid input. Please provide a valid link or forward a message.")
-                    await asyncio.sleep(5)
-                    await invalid_input_msg.delete()
-                    return
                 chat_identifier = match_link.group(4)
-                if chat_identifier.isnumeric():
-                    chat_id = int("-100" + chat_identifier) # For channel IDs (c/XXXX format)
+                if match_link.group(3) == 'c/':
+                    chat_id = int("-100" + chat_identifier)
                 else:
-                    chat_id = chat_identifier # for public channels 
+                    chat_id = chat_identifier
 
+                last_msg_id = int(match_link.group(5))
             else:
-                invalid_input_msg = await message.reply_text("Invalid input. Please provide a valid link or forward a message.")
+                invalid_input_msg = await message.reply_text("Invalid input. Please provide a valid message link or forward a message.")
                 await asyncio.sleep(5)
                 await invalid_input_msg.delete()
                 return
         else:
-            invalid_input_msg = await message.reply_text("Invalid input. Please provide a valid link, username, ID, or forward a message.")
+            invalid_input_msg = await message.reply_text("Invalid input. Please provide a valid message link or forward a message.")
             await asyncio.sleep(5)
             await invalid_input_msg.delete()
             return
@@ -179,30 +179,34 @@ async def run(bot, message):
         await error_msg.delete()
         return
 
-    
-    # --- Step 4: Get Skip Number ---
+
+    # --- Step 3: Get Number of Messages to Forward ---
     num_messages_prompt = await message.reply_text(
-        "Please enter the **number of messages to forward ** from the starting message ID. "
-        "Enter `0` if you want to forward all from the provided message ID."
+        "Please enter the **number of messages to forward** (from the starting message ID).\n"
+        "Enter `0` to forward all available messages from that point."
     )
     try:
-        num_messages = await bot.listen(message.chat.id, filters.text, timeout=60)
-        await num_messages_prompt.delete() # Delete bot's message
-        await num_messages.delete() # Delete user's message
+        num_messages_response = await bot.listen(
+            message.chat.id,
+            filters.text & filters.user(user_id),
+            timeout=60
+        )
+        await num_messages_prompt.delete()
+        await num_messages_response.delete()
 
-        if num_messages.text.startswith('/cancel'):
+        if num_messages_response.text.startswith('/cancel'):
             cancel_msg = await message.reply(Translation.CANCEL)
             await asyncio.sleep(3)
             await cancel_msg.delete()
             return
         try:
-            num_messages_value = int(num_messages.text)
+            num_messages_value = int(num_messages_response.text)
             if num_messages_value < 0:
-                raise ValueError("Skip number cannot be negative.")
+                raise ValueError("Number of messages cannot be negative.")
         except ValueError:
-            invalid_skip_msg = await message.reply("Invalid skip number. Please enter a non-negative integer.")
+            invalid_num_msg = await message.reply("Invalid number of messages. Please enter a non-negative integer.")
             await asyncio.sleep(3)
-            await invalid_skip_msg.delete()
+            await invalid_num_msg.delete()
             return
     except asyncio.exceptions.TimeoutError:
         await num_messages_prompt.delete()
@@ -212,14 +216,13 @@ async def run(bot, message):
         return
     except Exception as e:
         await num_messages_prompt.delete()
-        error_msg = await message.reply_text(f'An unexpected error occurred during skip input: {e}')
+        error_msg = await message.reply_text(f'An unexpected error occurred during message count input: {e}')
         await asyncio.sleep(3)
         await error_msg.delete()
         return
 
-
-    # --- Step 5: Confirmation ---
-    forward_id = f"{user_id}-{message.id}-{int(time.time())}" # More unique ID for STS
+    # --- Step 4: Confirmation ---
+    forward_id = f"{user_id}-{message.id}-{int(time.time())}"
     
     confirmation_msg = await message.reply_text(
         text=f"**<u>Forwarding Details Summary</u>**\n\n"
@@ -227,20 +230,24 @@ async def run(bot, message):
              f"**Source Chat:** `{source_chat_title}` (ID: `{chat_id}`)\n"
              f"**Destination Chat:** `{to_title}` (ID: `{toid}`)\n"
              f"**Starting from Message ID:** `{last_msg_id}`\n"
-             f"**Messages to forward:** `{num_messages_value}`\n\n"
-             f"**Do you want to proceed? reply(Y/N)**",
+             f"**Messages to forward:** `{'All' if num_messages_value == 0 else num_messages_value}`\n\n"
+             f"**Do you want to proceed? Reply (Y/N)**",
         disable_web_page_preview=True
     )
 
     try:
-        proceed_response = await bot.listen(message.chat.id, filters.text, timeout=60)
-        await confirmation_msg.delete() # Delete bot's confirmation message
-        await proceed_response.delete() # Delete user's reply
+        proceed_response = await bot.listen(
+            message.chat.id,
+            filters.text & filters.user(user_id),
+            timeout=60
+        )
+        await confirmation_msg.delete()
+        await proceed_response.delete()
 
         if proceed_response.text.lower() == 'y':
             
-            await message.reply_text("👍 Starting the forwarding process... You'll receive updates.")
-            # i call here to forward functions
+            asyncio.create_task(start_forwarding(user_id, chat_id, toid, num_messages_value, match_link, is_forwarded_msg))
+
         else:
             cancel_msg = await message.reply_text("Forwarding cancelled by user.")
             await asyncio.sleep(3)
