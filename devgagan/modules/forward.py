@@ -94,6 +94,7 @@ async def run(bot, message):
 
     # --- Step 2: Get Source Chat Information ---
     chat_id = None
+    start_msg_id = None
     last_msg_id = None
     source_chat_title = "Unknown Chat"
     is_forwarded_msg = False
@@ -129,9 +130,9 @@ async def run(bot, message):
             fwd_chat = source_input_msg.forward_from_chat
             chat_id = fwd_chat.id
             source_chat_title = fwd_chat.title or "Private Chat"
-            last_msg_id = source_input_msg.forward_from_message_id
+            start_msg_id = source_input_msg.forward_from_message_id
 
-            if last_msg_id is None:
+            if start_msg_id is None:
                 await message.reply_text(
                     "This looks like a forwarded message where the original message ID is hidden. "
                     "Please try sending a direct link to the message instead (e.g., `https://t.me/channel_name/message_id`)."
@@ -154,7 +155,7 @@ async def run(bot, message):
                 else:
                     chat_id = chat_identifier
 
-                last_msg_id = int(match_link.group(5))
+                start_msg_id = int(match_link.group(5))
             else:
                 invalid_input_msg = await message.reply_text("Invalid input. Please provide a valid message link or forward a message.")
                 await asyncio.sleep(5)
@@ -181,45 +182,85 @@ async def run(bot, message):
 
 
     # --- Step 3: Get Number of Messages to Forward ---
-    num_messages_prompt = await message.reply_text(
-        "Please enter the **number of messages to forward** (from the starting message ID).\n"
-        "Enter `0` to forward all available messages from that point."
-    )
+    ask_end_msg = await message.reply_text("📨 Now send the last msg link or forward a last message")
+    
     try:
-        num_messages_response = await bot.listen(
+        end_input = await bot.listen(
             message.chat.id,
-            filters.text & filters.user(user_id),
-            timeout=60
+            filters.user(user_id),
+            timeout=300
         )
-        await num_messages_prompt.delete()
-        await num_messages_response.delete()
+        await ask_end_msg.delete()
+        await end_input.delete()
 
-        if num_messages_response.text.startswith('/cancel'):
+        if end_input.text and end_input.text.startswith('/cancel'):
             cancel_msg = await message.reply(Translation.CANCEL)
             await asyncio.sleep(3)
             await cancel_msg.delete()
             return
-        try:
-            num_messages_value = int(num_messages_response.text)
-            if num_messages_value < 0:
-                raise ValueError("Number of messages cannot be negative.")
-        except ValueError:
-            invalid_num_msg = await message.reply("Invalid number of messages. Please enter a non-negative integer.")
-            await asyncio.sleep(3)
-            await invalid_num_msg.delete()
+
+        if end_input.forward_from_chat:
+            fwd_chat = end_input.forward_from_chat
+            #chat_id = fwd_chat.id
+            #source_chat_title = fwd_chat.title or "Private Chat"
+            last_msg_id = end_input.forward_from_message_id
+
+            if last_msg_id is None:
+                await message.reply_text(
+                    "This looks like a forwarded message where the original message ID is hidden. "
+                    "Please try sending a direct link to the message instead (e.g., `https://t.me/channel_name/message_id`)."
+                )
+                await asyncio.sleep(7)
+                return
+
+        elif end_input.text:
+            input_text = end_input.text.strip()
+
+            # Regex to correctly parse channel links with numeric ID or username AND message ID
+            regex_link = re.compile(r"(https?://)?(t\.me/|telegram\.me/|telegram\.dog/)(c/)?([a-zA-Z0-9_]+)/(\d+)$")
+            match_link = regex_link.match(input_text)
+
+            if match_link:
+                chat_identifier = match_link.group(4)
+                if match_link.group(3) == 'c/':
+                    chat_id = int("-100" + chat_identifier)
+                else:
+                    chat_id = chat_identifier
+
+                last_msg_id = int(match_link.group(5))
+            else:
+                invalid_input_msg = await message.reply_text("Invalid input. Please provide a valid message link or forward a message.")
+                await asyncio.sleep(5)
+                await invalid_input_msg.delete()
+                return
+        else:
+            invalid_input_msg = await message.reply_text("Invalid input. Please provide a valid message link or forward a message.")
+            await asyncio.sleep(5)
+            await invalid_input_msg.delete()
             return
+
     except asyncio.exceptions.TimeoutError:
-        await num_messages_prompt.delete()
+        await ask_end_msg.delete()
         timeout_msg = await message.reply_text('Operation timed out. Please try again.')
         await asyncio.sleep(3)
         await timeout_msg.delete()
         return
     except Exception as e:
-        await num_messages_prompt.delete()
-        error_msg = await message.reply_text(f'An unexpected error occurred during message count input: {e}')
+        await ask_end_msg.delete()
+        error_msg = await message.reply_text(f'An unexpected error occurred during source input: {e}')
         await asyncio.sleep(3)
         await error_msg.delete()
         return
+
+    # Validate range
+    if last_msg_id < start_msg_id:
+        err = await message.reply_text("⚠️ Ending message ID cannot be less than starting message ID.")
+        await asyncio.sleep(3)
+        await err.delete()
+        return
+
+    num_messages_value = end_msg_id - start_msg_id + 1
+
 
     # --- Step 4: Confirmation ---
     forward_id = f"{user_id}-{message.id}-{int(time.time())}"
