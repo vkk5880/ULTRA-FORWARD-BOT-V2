@@ -1,19 +1,4 @@
- 
-# ---------------------------------------------------
-# File Name: shrink.py
-# Description: A Pyrogram bot for downloading files from Telegram channels or groups 
-#              and uploading them back to Telegram.
-# Author: Gagan
-# GitHub: https://github.com/devgaganin/
-# Telegram: https://t.me/team_spy_pro
-# YouTube: https://youtube.com/@dev_gagan
-# Created: 2025-01-11
-# Last Modified: 2025-01-11
-# Version: 2.0.5
-# License: MIT License
-# ---------------------------------------------------
-
-from pyrogram import Client, filters
+ from pyrogram import Client, filters
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 import random
 import requests
@@ -24,8 +9,6 @@ from devgagan.core.func import *
 from datetime import datetime, timedelta
 from motor.motor_asyncio import AsyncIOMotorClient
 from config import MONGO_DB, WEBSITE_URL, AD_API, CONTACT, LOG_GROUP  
-#import devgagan.modules.connectUser  # Correct import path
-#from devgagan.modules.connectUser import register_handlers
 from config import MONGO_DB as MONGODB_CONNECTION_STRING, LOG_GROUP, OWNER_ID, STRING, API_ID, CONTACT, API_HASH, CHANNEL_LINK
 from pyrogram.types import Message 
 from config import LOG_GROUP
@@ -75,65 +58,6 @@ async def is_user_verified(user_id):
     """Check if a user has an active session."""
     session = await token.find_one({"user_id": user_id})
     return session is not None
-
-
-
-
- 
-
-# --- Simple Logging Setup ---
-logger = logging.getLogger(__name__)
-
-# logging.DEBUG is useful for development, logging.INFO or higher for production
-logger.setLevel(logging.DEBUG)
-
-handler = logging.StreamHandler(sys.stdout)
-formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-handler.setFormatter(formatter)
-if not logger.handlers:
-    logger.addHandler(handler)
-
-# --- End Simple Logging Setup ---
-
-@app.on_message(filters.command("testlogcopy"))
-async def test_log_copy_command(client: Client, message: Message):
-    temp_message = None # Initialize temp_message to None
-    logger.info(f"Received /testlogcopy command from user {message.from_user.id}") # Log command reception
-
-    try:
-        temp_message = await message.reply("Creating a message to copy...")
-        logger.debug(f"Sent temporary message (ID: {temp_message.id}) to user {message.chat.id}") # Log temporary message sent
-
-        logger.debug(f"Attempting to copy temporary message (ID: {temp_message.id}) to LOG_GROUP {LOG_GROUP}") # Log copy attempt
-        copied_message = await temp_message.copy(chat_id=LOG_GROUP)
-        logger.info(f"Temporary message successfully copied to LOG_GROUP {LOG_GROUP}. Copied message ID: {copied_message.id}") # Log successful copy
-
-        # 3. Reply to the user indicating success, including LOG_GROUP value
-        await message.reply(f"Test message successfully copied to the LOG_GROUP (`{LOG_GROUP}`) using copy(). Temporary message was not deleted.")
-        logger.info(f"Replied to user indicating successful copy to LOG_GROUP {LOG_GROUP}.") # Log user notification
-
-    except Exception as e:
-        # Reply to the user indicating failure and the error, including LOG_GROUP value
-        await message.reply(f"Failed to copy test message to the LOG_GROUP (`{LOG_GROUP}`): {e}")
-        logger.error(f"Failed to copy temporary message to LOG_GROUP {LOG_GROUP} via /testlogcopy. Error: {e}", exc_info=True) # Log failure with traceback
-
-    # The finally block for deleting the temporary message has been removed.
-
-
-@app.on_message(filters.command("testmsg")) # Using the command name "testmsg"
-async def test_msg_command(client, message):
-    private_group_id = -1002633547185 # Replace with your group ID
-
-    try:
-        # Use the 'client' instance passed to the handler
-        await app.send_message(LOG_GROUP, text="This is a test message from the bot!")
-        # Use the correct variable name in the print statement
-        print("Message successfully sent to group {LOG_GROUP}")
-    except Exception as e:
-        print("Error sending message: {e}")
-
-    # Optional: Reply to the user who sent the command for confirmation
-    await message.reply(f"Test message successfully attempted to the LOG_GROUP (`{LOG_GROUP}`) .")
 
 
 
@@ -295,7 +219,7 @@ def extract_token_from_message(text: str) -> str:
     return None
 
 
-@app.on_message(filters.command("start"))
+@app.on_message(filters.command("starts"))
 async def token_handler(client, message):
     """Handle the /token command."""
     join = await subscribe(client, message)
