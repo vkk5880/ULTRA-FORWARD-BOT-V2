@@ -1,251 +1,339 @@
-# ---------------------------------------------------
-# File Name: db.py tel_db = db.users_data_tel_db  # Setting the database
-# Description: MongoDB operations for Pyrogram bot
-# Author: Gagan
-# GitHub: https://github.com/devgaganin/
-# Telegram: https://t.me/team_spy_pro
-# YouTube: https://youtube.com/@dev_gagan
-# Created: 2025-01-11
-# Last Modified: 2025-01-11
-# Version: 2.0.5
-# License: MIT License
-# ---------------------------------------------------
-
-from config import MONGO_DB
-from motor.motor_asyncio import AsyncIOMotorClient as MongoCli
-import json # Import json for printing in get_sessions
-import os # Import os for cleanup in upload_media if it's in this file (though unlikely)
+from config import MONGO_DB, Config
+from motor.motor_asyncio import AsyncIOMotorClient
+from pymongo import MongoClient
+import json
 import gc
-# Initialize MongoDB Client
-mongo = MongoCli(MONGO_DB)
-database = mongo.user_data
-db = database.users_data_db  # Setting the database
-
-# ✅ Corrected way to get collection reference
-user_sessions_real = db["user_sessions_real"]  # ✅ Corrected syntax
-
-# Function to get user data
-async def get_data(user_id):
-    return await db.find_one({"_id": user_id})
-
-# Function to set thumbnail for user
-async def set_thumbnail(user_id, thumb):
-    data = await get_data(user_id)
-    if data:
-        await db.update_one({"_id": user_id}, {"$set": {"thumb": thumb}})
-    else:
-        await db.insert_one({"_id": user_id, "thumb": thumb})
-
-# Function to set caption for user
-async def set_caption(user_id, caption):
-    data = await get_data(user_id)
-    if data:
-        await db.update_one({"_id": user_id}, {"$set": {"caption": caption}})
-    else:
-        await db.insert_one({"_id": user_id, "caption": caption})
-
-# Function to replace caption text
-async def replace_caption(user_id, replace_txt, to_replace):
-    data = await get_data(user_id)
-    if data:
-        await db.update_one({"_id": user_id}, {"$set": {"replace_txt": replace_txt, "to_replace": to_replace}})
-    else:
-        await db.insert_one({"_id": user_id, "replace_txt": replace_txt, "to_replace": to_replace})
-
-# Function to set user session
-# Function to set Pyrogram session
-async def set_session(user_id, session):
-    """Set Pyrogram session string in database"""
-    await db.update_one(
-        {"_id": user_id},
-        {"$set": {"session": session}},
-        upsert=True
-    )
+import os
 
 
-async def save_userbot_token(user_id, token_string):
-    """Set save_userbot_token string in database"""
-    await db.update_one(
-        {"_id": user_id},
-        {"$set": {"userbot_token": token_string}},
-        upsert=True
-    )
+class Database:
+    def __init__(self, uri, database_name):
+        self._client = AsyncIOMotorClient(uri)
+        self.db = self._client[database_name].db # Renamed from .users_data_db
 
+        self.bots = self._client[database_name].bots
+        self.notify = self._client[database_name].notify
+        self.channels = self._client[database_name].channels
 
+    async def mongodb_version(self):
+        return (await self._client.server_info())['version']
 
-# Function to set Telethon session
-async def set_telethon_session(user_id, telethon_session_string):
-    """Set Telethon session string in database"""
-    await db.update_one(
-        {"_id": user_id},
-        {"$set": {"telethon_session_string": telethon_session_string}},
-        upsert=True
-    )
+    # --- Functions for 'db' collection (consolidated user data) ---
 
-# Function to get both sessions
-async def get_sessionsss(user_id):
-    """Get both Pyrogram and Telethon sessions"""
-    data = await db.find_one({"_id": user_id})
-    if data:
+    async def get_data(self, user_id):
+        """
+        Fetches all data for a given user from the 'db' collection.
+        This serves as the primary way to retrieve a user's document.
+        """
+        return await self.db.find_one({"_id": user_id})
+
+    def new_user_document(self, id, name):
+        """
+        Creates a new user document structure with default values.
+        This will be stored in the 'db' collection.
+        """
         return {
-            "pyro_session": data.get("session"),
-            "telethon_session": data.get("telethon_session_string")
+            "_id": id,
+            "name": name,
+            "ban_status": {
+                "is_banned": False,
+                "ban_reason": "",
+            },
+            # Initialize other fields that might be added later, to ensure consistency
+            "thumb": None,
+            "caption": None,
+            "replace_txt": None,
+            "to_replace": None,
+            "session": None, # For Pyrogram session
+            "userbot_token": None, # For userbot token
+            "user_session_string": None, # For the "real" user session (if different from 'session')
+            "clean_words": [],
+            "configs": {
+                'caption': None,
+                'duplicate': True,
+                'forward_tag': False,
+                'file_size': 0,
+                'size_limit': None,
+                'extension': None,
+                'keywords': None,
+                'protect': None,
+                'button': None,
+                'db_uri': None, # This might be dynamic based on bot setup
+                'filters': {
+                    'poll': True, 'text': True, 'audio': True, 'voice': True,
+                    'video': True, 'photo': True, 'document': True,
+                    'animation': True, 'sticker': True
+                }
+            }
         }
-    return None
 
+    async def add_user(self, id, name):
+        """Adds a new user document to 'db' if they don't already exist."""
+        if not await self.is_user_exist(id):
+            user_doc = self.new_user_document(id, name)
+            await self.db.insert_one(user_doc)
 
+    async def is_user_exist(self, id):
+        """Checks if a user exists in the 'db' collection."""
+        user = await self.db.find_one({'_id': int(id)})
+        return bool(user)
 
-async def get_sessions(user_id):
-    """
-    Retrieve and print both Pyrogram and Telethon sessions
-    Returns dict with sessions or None if not found
-    """
-    try:
-        print(f"🔍 Fetching sessions for user {user_id}...")
-        data = await db.find_one({"_id": user_id})
-        
-        if not data:
-            print("❌ No session data found in database")
+    async def delete_user(self, user_id):
+        """Deletes a user's entire document from 'db'."""
+        await self.db.delete_many({'_id': int(user_id)})
+
+    async def total_users_count(self):
+        """Returns the total number of users in 'db'."""
+        return await self.db.count_documents({})
+
+    # --- User-specific data setters/getters (all targeting 'db') ---
+
+    async def set_thumbnail(self, user_id, thumb):
+        await self.db.update_one(
+            {"_id": user_id},
+            {"$set": {"thumb": thumb}},
+            upsert=True
+        )
+
+    async def remove_thumbnail(self, user_id):
+        await self.db.update_one({"_id": user_id}, {"$unset": {"thumb": ""}})
+
+    async def set_caption(self, user_id, caption):
+        await self.db.update_one(
+            {"_id": user_id},
+            {"$set": {"caption": caption}},
+            upsert=True
+        )
+
+    async def remove_caption(self, user_id):
+        await self.db.update_one({"_id": user_id}, {"$unset": {"caption": ""}})
+
+    async def replace_caption(self, user_id, replace_txt, to_replace):
+        await self.db.update_one(
+            {"_id": user_id},
+            {"$set": {"replace_txt": replace_txt, "to_replace": to_replace}},
+            upsert=True
+        )
+
+    async def remove_replace(self, user_id):
+        await self.db.update_one({"_id": user_id}, {"$unset": {"replace_txt": "", "to_replace": ""}})
+
+    async def set_session(self, user_id, session):
+        """Set Pyrogram session string in the user's document."""
+        await self.db.update_one(
+            {"_id": user_id},
+            {"$set": {"session": session}},
+            upsert=True
+        )
+
+    async def save_userbot_token(self, user_id, token_string):
+        """Set userbot_token string in the user's document."""
+        await self.db.update_one(
+            {"_id": user_id},
+            {"$set": {"userbot_token": token_string}},
+            upsert=True
+        )
+
+    async def get_sessions(self, user_id):
+        """
+        Retrieves Pyrogram and userbot sessions from the user's document.
+        Returns a dict with session info or None if not found.
+        """
+        try:
+            print(f"🔍 Fetching sessions for user {user_id}...")
+            data = await self.db.find_one({"_id": user_id})
+
+            if not data:
+                print("❌ No session data found for this user in database.")
+                return None
+
+            sessions = {
+                "userbot_token": data.get("userbot_token"),
+                "pyro_session": data.get("session"),
+                "has_pyro": bool(data.get("session"))
+            }
+            print(f"Pyrogram: {'✅' if sessions['has_pyro'] else '❌'}")
+            return sessions
+
+        except Exception as e:
+            print(f"⚠️ Error fetching sessions for user {user_id}: {e}")
             return None
 
-        # Print complete document for debugging
-        print("📄 Full database document:")
-        print(json.dumps(data, indent=2, default=str))
+    async def remove_pyro_session(self, user_id):
+        """Removes the Pyrogram session from the user's document."""
+        await self.db.update_one(
+            {"_id": user_id},
+            {"$unset": {"session": ""}}
+        )
 
-        # Extract sessions
-        sessions = {
-            "userbot_token": data.get("userbot_token"),
-            "pyro_session": data.get("session"),
-            "telethon_session": data.get("telethon_session_string"),
-            "has_pyro": bool(data.get("session")),
-            "has_telethon": bool(data.get("telethon_session_string"))
-        }
+    async def remove_session(self, user_id):
+        """Alias for remove_pyro_session, removes the 'session' field."""
+        await self.remove_pyro_session(user_id)
 
-        print("\n🔑 Extracted sessions:")
-        print(f"Pyrogram: {'✅' if sessions['has_pyro'] else '❌'}")
-        print(f"Telethon: {'✅' if sessions['has_telethon'] else '❌'}")
-
-        if sessions['pyro_session']:
-            print(f"\nPyrogram session (first 10 chars): {sessions['pyro_session'][:10]}...")
-        if sessions['telethon_session']:
-            print(f"Telethon session (first 10 chars): {sessions['telethon_session'][:10]}...")
-
-        return sessions
-
-    except Exception as e:
-        print(f"⚠️ Error fetching sessions: {e}")
-        return None
-
-# Function to check if Pyrogram session exists
-async def has_pyro_session(user_id):
-    """Check if user has Pyrogram session"""
-    data = await db.find_one({"_id": user_id})
-    return bool(data and data.get("session"))
-
-# Function to check if Telethon session exists
-async def has_telethon_session(user_id):
-    """Check if user has Telethon session"""
-    data = await db.find_one({"_id": user_id})
-    return bool(data and data.get("telethon_session_string"))
-
-# Function to remove Pyrogram session
-async def remove_pyro_session(user_id):
-    """Remove Pyrogram session"""
-    await db.update_one(
-        {"_id": user_id},
-        {"$unset": {"session": ""}}
-    )
-
-# Function to remove Telethon session
-async def remove_telethon_session(user_id):
-    """Remove Telethon session"""
-    await db.update_one(
-        {"_id": user_id},
-        {"$unset": {"telethon_session_string": ""}}
-    )
-
-# Function to remove both sessions
-async def remove_all_sessions(user_id):
-    """Remove both Pyrogram and Telethon sessions"""
-    await db.update_one(
-        {"_id": user_id},
-        {"$unset": {
-            "session": "",
-            "telethon_session_string": ""
-        }}
-    )
-
-
-# Function to add new clean words to user data
-async def clean_words(user_id, new_clean_words):
-    data = await get_data(user_id)
-    if data:
-        existing_words = data.get("clean_words", []) or []
+    async def clean_words(self, user_id, new_clean_words):
+        """Adds new clean words to the user's document."""
+        data = await self.get_data(user_id)
+        existing_words = data.get("clean_words", []) if data else []
         updated_words = list(set(existing_words + new_clean_words))
-        await db.update_one({"_id": user_id}, {"$set": {"clean_words": updated_words}})
-    else:
-        await db.insert_one({"_id": user_id, "clean_words": new_clean_words})
+        await self.db.update_one({"_id": user_id}, {"$set": {"clean_words": updated_words}}, upsert=True)
 
-# Function to remove specific clean words
-async def remove_clean_words(user_id, words_to_remove):
-    data = await get_data(user_id)
-    if data:
-        existing_words = data.get("clean_words", []) or []
+    async def remove_clean_words(self, user_id, words_to_remove):
+        """Removes specific clean words from the user's document."""
+        data = await self.get_data(user_id)
+        existing_words = data.get("clean_words", []) if data else []
         updated_words = [word for word in existing_words if word not in words_to_remove]
-        await db.update_one({"_id": user_id}, {"$set": {"clean_words": updated_words}})
-    else:
-        await db.insert_one({"_id": user_id, "clean_words": []})
+        await self.db.update_one({"_id": user_id}, {"$set": {"clean_words": updated_words}}, upsert=True)
 
-# Function to set user channel
-async def set_channel(user_id, chat_id):
-    data = await get_data(user_id)
-    if data:
-        await db.update_one({"_id": user_id}, {"$set": {"chat_id": chat_id}})
-    else:
-        await db.insert_one({"_id": user_id, "chat_id": chat_id})
+    async def all_words_remove(self, user_id):
+        """Removes all clean words from the user's document."""
+        await self.db.update_one({"_id": user_id}, {"$unset": {"clean_words": ""}})
 
-# Function to remove all words
-async def all_words_remove(user_id):
-    await db.update_one({"_id": user_id}, {"$set": {"clean_words": None}})
+    # --- Ban Status Functions (all targeting 'db') ---
 
-# Function to remove user thumbnail
-async def remove_thumbnail(user_id):
-    await db.update_one({"_id": user_id}, {"$set": {"thumb": None}})
+    async def remove_ban(self, id):
+        """Removes ban status for a user."""
+        ban_status = {
+            "is_banned": False,
+            "ban_reason": ''
+        }
+        await self.db.update_one({'_id': id}, {'$set': {'ban_status': ban_status}})
 
-# Function to remove user caption
-async def remove_caption(user_id):
-    await db.update_one({"_id": user_id}, {"$set": {"caption": None}})
+    async def ban_user(self, user_id, ban_reason="No Reason"):
+        """Bans a user with a given reason."""
+        ban_status = {
+            "is_banned": True,
+            "ban_reason": ban_reason
+        }
+        await self.db.update_one({'_id': user_id}, {'$set': {'ban_status': ban_status}})
 
-# Function to remove replace text fields
-async def remove_replace(user_id):
-    await db.update_one({"_id": user_id}, {"$set": {"replace_txt": None, "to_replace": None}})
+    async def get_ban_status(self, id):
+        """Retrieves the ban status for a user."""
+        default = {
+            "is_banned": False,
+            "ban_reason": ''
+        }
+        user = await self.db.find_one({'_id': int(id)})
+        return user.get('ban_status', default) if user else default
 
-# Function to remove user session
-async def remove_session(user_id):
-    await db.update_one({"_id": user_id}, {"$set": {"session": None}})
+    async def get_all_users(self):
+        """Returns a cursor for all user documents in 'db'."""
+        return self.db.find({})
 
-# Function to remove user channel
-async def remove_channel(user_id):
-    await db.update_one({"_id": user_id}, {"$set": {"chat_id": None}})
+    async def get_banned(self):
+        """Returns a list of IDs for all banned users."""
+        users = self.db.find({'ban_status.is_banned': True})
+        b_users = [user['_id'] async for user in users]
+        return b_users
 
-# Function to delete session from database
-async def delete_session(user_id):
-    """Delete the session associated with the given user_id from the database."""
-    await db.update_one({"_id": user_id}, {"$unset": {"session": ""}})
+    # --- Configuration Functions (all targeting 'db') ---
 
-# ✅ Functions for user_sessions_real
+    async def update_configs(self, id, configs):
+        """Updates the configuration settings for a user."""
+        await self.db.update_one({'_id': int(id)}, {'$set': {'configs': configs}})
 
-# Function to save user session in `user_sessions_real`
-async def save_user_session(user_id, session_string):
-    """Save user session in the new user_sessions_real collection."""
-    await user_sessions_real.insert_one({"user_id": user_id, "session_string": session_string})
+    async def get_configs(self, id):
+        """Retrieves the configuration settings for a user, or defaults if not set."""
+        default_configs = {
+            'caption': None,
+            'duplicate': True,
+            'forward_tag': False,
+            'file_size': 0,
+            'size_limit': None,
+            'extension': None,
+            'keywords': None,
+            'protect': None,
+            'button': None,
+            'db_uri': None,
+            'filters': {
+                'poll': True, 'text': True, 'audio': True, 'voice': True,
+                'video': True, 'photo': True, 'document': True,
+                'animation': True, 'sticker': True
+            }
+        }
+        user = await self.db.find_one({'_id': int(id)})
+        return user.get('configs', default_configs) if user else default_configs
 
-# Function to get user session from `user_sessions_real`
-async def get_user_session(user_id):
-    """Retrieve user session from the user_sessions_real collection."""
-    return await user_sessions_real.find_one({"user_id": user_id})
+    async def get_filters(self, user_id):
+        """Returns a list of filters that are currently disabled for a user."""
+        filters_list = []
+        filter_configs = (await self.get_configs(user_id))['filters']
+        for k, v in filter_configs.items():
+            if not v: # If filter is False (i.e., disabled)
+                filters_list.append(str(k))
+        return filters_list
 
-# Function to remove user session from `user_sessions_real`
-async def remove_user_session(user_id):
-    """Remove user session from the new user_sessions_real collection."""
-    await user_sessions_real.delete_one({"user_id": user_id})
+    # --- Bot-related Functions (still in 'bots' collection) ---
+
+    async def total_users_bots_count(self):
+        """Returns counts of total users and bots."""
+        bcount = await self.bots.count_documents({})
+        # Count users from the main 'db' collection
+        ucount = await self.db.count_documents({})
+        return ucount, bcount
+
+    async def add_bot(self, datas):
+        """Adds a new bot to the 'bots' collection if it doesn't already exist."""
+        if not await self.is_bot_exist(datas['user_id']):
+            await self.bots.insert_one(datas)
+
+    async def remove_bot(self, user_id):
+        """Removes a bot from the 'bots' collection."""
+        await self.bots.delete_many({'user_id': int(user_id)})
+
+    async def get_bot(self, user_id: int):
+        """Retrieves bot data from the 'bots' collection."""
+        return await self.bots.find_one({'user_id': user_id})
+
+    async def is_bot_exist(self, user_id):
+        """Checks if a bot exists in the 'bots' collection."""
+        return bool(await self.bots.find_one({'user_id': user_id}))
+
+    # --- Channel-related Functions (still in 'channels' collection) ---
+
+    async def total_channels(self):
+        """Returns the total number of channels."""
+        return await self.channels.count_documents({})
+
+    async def in_channel(self, user_id: int, chat_id: int) -> bool:
+        """Checks if a channel is associated with a user."""
+        return bool(await self.channels.find_one({"user_id": int(user_id), "chat_id": int(chat_id)}))
+
+    async def add_channel(self, user_id: int, chat_id: int, title, username):
+        """Adds a channel for a user if it doesn't already exist."""
+        if await self.in_channel(user_id, chat_id):
+            return False
+        return await self.channels.insert_one({"user_id": user_id, "chat_id": chat_id, "title": title, "username": username})
+
+    async def remove_channel(self, user_id: int, chat_id: int):
+        """Removes a channel associated with a user."""
+        if not await self.in_channel(user_id, chat_id):
+            return False
+        return await self.channels.delete_many({"user_id": int(user_id), "chat_id": int(chat_id)})
+
+    async def get_channel_details(self, user_id: int, chat_id: int):
+        """Retrieves details of a specific channel for a user."""
+        return await self.channels.find_one({"user_id": int(user_id), "chat_id": int(chat_id)})
+
+    async def get_user_channels(self, user_id: int):
+        """Returns a list of channels associated with a user."""
+        channels_cursor = self.channels.find({"user_id": int(user_id)})
+        return [channel async for channel in channels_cursor]
+
+    # --- Notification-related Functions (still in 'notify' collection) ---
+
+    async def add_frwd(self, user_id):
+        """Adds a user to the forward notification list."""
+        return await self.notify.insert_one({'user_id': int(user_id)})
+
+    async def rmve_frwd(self, user_id=0, all=False):
+        """Removes a user from the forward notification list, or all users."""
+        data = {} if all else {'user_id': int(user_id)}
+        return await self.notify.delete_many(data)
+
+    async def get_all_frwd(self):
+        """Returns a cursor for all users in the forward notification list."""
+        return self.notify.find({})
+
+
+# Initialize the Database instance for use throughout your application
+db = Database(Config.DB_URL, Config.DB_NAME)
