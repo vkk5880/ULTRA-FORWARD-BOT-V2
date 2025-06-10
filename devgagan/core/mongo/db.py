@@ -1,3 +1,25 @@
+DEFAULT_CONFIGS = {
+    'caption': None,
+    'duplicate': True,
+    'forward_tag': False,
+    'file_size': 0,
+    'size_limit': None,
+    'extension': None,
+    'keywords': None,
+    'protect': None,
+    'button': None,
+    'db_uri': None,
+    'filters': {
+        'poll': True, 'text': True, 'audio': True, 'voice': True,
+        'video': True, 'photo': True, 'document': True,
+        'animation': True, 'sticker': True
+    }
+}
+
+
+
+
+
 from config import MONGO_DB, Config
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import MongoClient
@@ -48,23 +70,7 @@ class Database:
             "userbot_token": None, # For userbot token
             "user_session_string": None, # For the "real" user session (if different from 'session')
             "clean_words": [],
-            "configs": {
-                'caption': None,
-                'duplicate': True,
-                'forward_tag': False,
-                'file_size': 0,
-                'size_limit': None,
-                'extension': None,
-                'keywords': None,
-                'protect': None,
-                'button': None,
-                'db_uri': None, # This might be dynamic based on bot setup
-                'filters': {
-                    'poll': True, 'text': True, 'audio': True, 'voice': True,
-                    'video': True, 'photo': True, 'document': True,
-                    'animation': True, 'sticker': True
-                }
-            }
+            "configs": DEFAULT_CONFIGS
         }
 
     async def add_user(self, id, name):
@@ -233,25 +239,8 @@ class Database:
 
     async def get_configs(self, id):
         """Retrieves the configuration settings for a user, or defaults if not set."""
-        default_configs = {
-            'caption': None,
-            'duplicate': True,
-            'forward_tag': False,
-            'file_size': 0,
-            'size_limit': None,
-            'extension': None,
-            'keywords': None,
-            'protect': None,
-            'button': None,
-            'db_uri': None,
-            'filters': {
-                'poll': True, 'text': True, 'audio': True, 'voice': True,
-                'video': True, 'photo': True, 'document': True,
-                'animation': True, 'sticker': True
-            }
-        }
         user = await self.db.find_one({'_id': int(id)})
-        return user.get('configs', default_configs) if user else default_configs
+        return user.get('configs', DEFAULT_CONFIGS) if user else DEFAULT_CONFIGS
 
     async def get_filters(self, user_id):
         """Returns a list of filters that are currently disabled for a user."""
