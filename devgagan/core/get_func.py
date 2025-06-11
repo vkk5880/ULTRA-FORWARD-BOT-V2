@@ -10,9 +10,7 @@ from pyrogram.errors import ChannelBanned, ChannelInvalid, ChannelPrivate, ChatI
 from pyrogram.enums import MessageMediaType, ParseMode
 from pyrogram.errors import RPCError
 from pyrogram.types import Message
-from config import MONGO_DB as MONGODB_CONNECTION_STRING, LOG_GROUP, OWNER_ID, STRING, API_ID, CONTACT, API_HASH
-from devgagan.core.mongo.db import set_session, remove_session, get_data
-from devgagan.core.func import *
+from config import LOG_GROUP, OWNER_ID, STRING, API_ID, CONTACT, API_HASH
 from devgagan import app
 from pyrogram import filters, Client
 
