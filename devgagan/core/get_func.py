@@ -20,12 +20,9 @@ from pyrogram import filters, Client
 from typing import Union, AsyncGenerator
 from pyrogram import types
 from db import db
-from .test import CLIENT, start_clone_bot
-from config import Config, temp
 from pyrogram.errors import FloodWait, MessageNotModified, RPCError
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 
-CLIENT = CLIENT()
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -55,19 +52,30 @@ async def start_forwarding(user_id, chat_id, toid, start_msg_id, limit, is_forwa
         m = await message.edit_text("🔍 Verifying your data...")
         
         # Get user data
-        user_data = await db.get_user_data(user_id)
-        if not user_data or not user_data.get('bot_token'):
+        bot_data, filters, configs  = await get_user_data(user_id)
+        if not bot_data or not bot_data.get('bot_token'):
             await m.edit_text("❌ No bot configured. Please add a bot first! /settings")
             return
 
-        # Initialize client
-        client = await start_clone_bot(CLIENT.client(user_data))
-        active_tasks[user_id] = asyncio.current_task()
-
         # Validate access
-        if is_forwarded_msg and not chat_id == user_id and user_data.get('is_bot', True):
+        if is_forwarded_msg and not chat_id == user_id and not bot_data.get('is_userbot', False):
             await m.edit_text("⚠️ For private chats, please use a user bot, /settings or /login")
             return await cleanup(client, user_id)
+
+        client = None
+        try:
+          # Initialize client
+          if is_forwarded_msg and not chat_id == user_id:
+            client = await initialize_userbot(user_id,bot_data.get('userbot_session'))
+
+          else:
+            client = await start_bot(user_id,bot_data.get('bot_token'))
+          active_tasks[user_id] = asyncio.current_task()
+
+        except Exception as e:
+          logger.error(f"Initialize client error: {str(e)}")
+          await m.edit_text(f"❌ Error: {str(e)}")
+          return await cleanup(None, user_id)
 
         try:
             await client.get_messages(chat_id, start_msg_id if start_msg_id else 1)
@@ -106,13 +114,13 @@ async def start_forwarding(user_id, chat_id, toid, start_msg_id, limit, is_forwa
                 stats['deleted'] += 1
                 continue
 
-            if user_data.get('forward_tag', False):
+            if configs.get('forward_tag', False):
                 batch.append(msg.id)
                 if len(batch) >= 100 or (limit - stats['fetched']) <= 5:
-                    await process_batch(client, batch, chat_id, toid, user_data, stats, m)
+                    await process_batch(client, batch, chat_id, toid, configs, stats, m)
                     batch = []
             else:
-                await copy_message(client, msg, toid, user_data, stats, m)
+                await copy_message(client, msg, toid, configs, stats, m)
 
             # Update progress periodically
             if stats['fetched'] % 20 == 0 or stats['fetched'] == limit:
@@ -120,7 +128,7 @@ async def start_forwarding(user_id, chat_id, toid, start_msg_id, limit, is_forwa
 
         # Process any remaining messages in batch
         if batch and users_loop.get(user_id, False):
-            await process_batch(client, batch, chat_id, toid, user_data, stats, m)
+            await process_batch(client, batch, chat_id, toid, configs, stats, m)
 
         status = 'Completed' if users_loop.get(user_id, False) else 'Cancelled'
         await update_progress(m, stats, limit, status)
@@ -131,54 +139,55 @@ async def start_forwarding(user_id, chat_id, toid, start_msg_id, limit, is_forwa
     finally:
         await cleanup(client, user_id)
 
-async def process_batch(client, batch, chat_id, to_id, user_data, stats, status_msg):
+async def process_batch(client, batch, chat_id, to_id, configs, stats, status_msg):
     try:
-        if user_data.get('forward_tag', False):
+        if configs.get('forward_tag', False):
             await client.forward_messages(
                 chat_id=to_id,
                 from_chat_id=chat_id,
                 message_ids=batch,
-                protect_content=user_data.get('protect', False)
+                protect_content=configs.get('protect', False)
             )
         else:
             for msg_id in batch:
                 msg = await client.get_messages(chat_id, msg_id)
-                await copy_message(client, msg, to_id, user_data, stats, status_msg)
+                await copy_message(client, msg, to_id, configs, stats, status_msg)
         
         stats['forwarded'] += len(batch)
         await update_progress(status_msg, stats, None, "Waiting 10s")
         await asyncio.sleep(10)
     except FloodWait as e:
-        await update_progress(status_msg, stats, None, f"Waiting {e.value}s")
+        await update_progress(status_msg, stats, None, f"FloodWait Waiting {e.value}s")
         await asyncio.sleep(e.value)
-        await process_batch(client, batch, chat_id, to_id, user_data, stats, status_msg)
+        await process_batch(client, batch, chat_id, to_id, configs, stats, status_msg)
     except Exception as e:
         logger.error(f"Batch error: {str(e)}")
 
-async def copy_message(client, message, to_id, user_data, stats, status_msg):
+async def copy_message(client, message, to_id, configs, stats, status_msg):
     try:
-        caption = custom_caption(message, user_data.get('caption', ''))
+        caption = custom_caption(message, configs.get('caption', ''))
         if message.media and caption:
             await client.send_cached_media(
                 chat_id=to_id,
                 file_id=media(message),
                 caption=caption,
-                reply_markup=user_data.get('button'),
-                protect_content=user_data.get('protect', False)
+                reply_markup=configs.get('button'),
+                protect_content=configs.get('protect', False)
         else:
             await client.copy_message(
                 chat_id=to_id,
                 from_chat_id=message.chat.id,
                 message_id=message.id,
                 caption=caption,
-                reply_markup=user_data.get('button'),
-                protect_content=user_data.get('protect', False))
+                reply_markup=configs.get('button'),
+                protect_content=configs.get('protect', False))
         
         stats['forwarded'] += 1
+        await asyncio.sleep(1)
     except FloodWait as e:
-        await update_progress(status_msg, stats, None, f"Waiting {e.value}s")
+        await update_progress(status_msg, stats, None, f"FloodWait Waiting {e.value}s")
         await asyncio.sleep(e.value)
-        await copy_message(client, message, to_id, user_data, stats, status_msg)
+        await copy_message(client, message, to_id, configs, stats, status_msg)
     except Exception as e:
         logger.error(f"Copy error: {str(e)}")
 
@@ -189,7 +198,7 @@ async def update_progress(message, stats, total, status):
         percentage = math.floor((stats['fetched'] / total) * 100) if total else 0
         progress_bar = "".join(
             "▓" if i < percentage//10 else "░"
-            for i in range(10)
+            for i in range(10))
         
         # Calculate ETA
         elapsed = time.time() - stats['start_time']
@@ -345,29 +354,39 @@ async def handle_close(c: Client, cb: CallbackQuery):
 
 
 async def get_user_data(user_id):
-    _bot = await db.get_bot(user_id)
+  bot_data = await db.get_bot(user_id)
+  filters = await db.get_filters(user_id)
+  configs = await db.get_configs(user_id)
+  return bot_data, filters, configs
 
 
 
+async def start_bot(user_id, bot_token):
+  user_bot = Client(
+    f"user_bot_{user_id}",
+    api_id=API_ID,
+    api_hash=API_HASH,
+    bot_token=bot_token,
+    parse_mode=ParseMode.MARKDOWN
+  )
+  await user_bot.start()
+  return user_bot
+  
 
 
-async def initialize_userbot(user_id): # this ensure the single startup .. even if logged in or not
+async def initialize_userbot(user_id, userbot_session):
     """Initialize the userbot session for the given user."""
-    data = await db.get_data(user_id)
-    if data and data.get("session"):
-        try:
-            device = 'iPhone 16 Pro' # added gareebi text
-            userbot = Client(
-                "userbot",
-                api_id=API_ID,
-                api_hash=API_HASH,
-                device_model=device,
-                session_string=data.get("session")
-            )
-            await userbot.start()
-            return userbot
-        except Exception:
-            return None
-    return None
-
+    try:
+        device = 'iPhone 16 Pro'
+        userbot = Client(
+            f"userbot_{user_id}",
+            api_id=API_ID,
+            api_hash=API_HASH,
+            device_model=device,
+            session_string=userbot_session
+        )
+        await userbot.start()
+        return userbot
+    except Exception:
+        return None
 
