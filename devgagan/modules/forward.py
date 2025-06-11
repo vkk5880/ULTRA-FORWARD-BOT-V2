@@ -2,9 +2,7 @@ import re
 import asyncio
 import time
 
-from database import db
-from config import temp
-from translation import Translation
+from db import db
 from pyrogram import Client, filters, enums
 from pyrogram.errors import FloodWait
 from pyrogram.errors.exceptions.not_acceptable_406 import ChannelPrivate as PrivateChat
@@ -18,16 +16,15 @@ from pyrogram.errors.exceptions.bad_request_400 import (
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery, KeyboardButton, ReplyKeyboardMarkup, ReplyKeyboardRemove
 
 from devgagan.core.get_func import start_forwarding
-from .utils import get_readable_time
 
 
 @Client.on_message(filters.private & filters.command(["fwd", "forward"]))
 async def run(bot, message):
     user_id = message.from_user.id
-    _bot = await db.get_bot(user_id)
+    bot_data = await db.get_bot(user_id)
 
-    if not _bot:
-        initial_msg = await message.reply("You haven't added any bots yet. Please add a bot using /settings before trying to forward messages.")
+    if not bot_data and not bot_data.get('bot_token'): # or userbot_session for userbot
+        initial_msg = await message.reply("You haven't added any bots yet. Please add a bot using /settings or /addbot before trying to forward messages.")
         await asyncio.sleep(5)
         await initial_msg.delete()
         return
@@ -287,7 +284,7 @@ async def run(bot, message):
 
         if proceed_response.text.lower() == 'y':
             
-            asyncio.create_task(start_forwarding(user_id, chat_id, toid, num_messages_value, match_link, is_forwarded_msg))
+            asyncio.create_task(start_forwarding(user_id, chat_id, toid, start_msg_id, num_messages_value, is_forwarded_msg, message))
 
         else:
             cancel_msg = await message.reply_text("Forwarding cancelled by user.")
