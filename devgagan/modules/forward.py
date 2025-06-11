@@ -1,7 +1,7 @@
 import re
 import asyncio
 import time
-
+from devgagan import app
 from db import db
 from pyrogram import Client, filters, enums
 from pyrogram.errors import FloodWait
@@ -18,7 +18,7 @@ from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQ
 from devgagan.core.get_func import start_forwarding
 
 
-@Client.on_message(filters.private & filters.command(["fwd", "forward"]))
+@app.on_message(filters.private & filters.command(["fwd", "forward"]))
 async def run(bot, message):
     user_id = message.from_user.id
     bot_data = await db.get_bot(user_id)
