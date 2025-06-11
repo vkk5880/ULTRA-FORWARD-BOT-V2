@@ -1,17 +1,3 @@
-# ---------------------------------------------------
-# File Name: get_func.py
-# Description: A Pyrogram bot for downloading files from Telegram channels or groups 
-#              and uploading them back to Telegram.
-# Author: Gagan
-# GitHub: https://github.com/devgaganin/
-# Telegram: https://t.me/team_spy_pro
-# YouTube: https://youtube.com/@dev_gagan
-# Created: 2025-01-11
-# Last Modified: 2025-02-01
-# Version: 2.0.5
-# License: MIT License
-# Improved logic handles
-# ---------------------------------------------------
 import os
 import sys
 import math
@@ -20,80 +6,20 @@ import asyncio
 import logging
 import gc
 import re
-from typing import Callable
-from telethon import TelegramClient, events, Button, types
-from telethon.errors import (
-    ChannelInvalidError, 
-    ChannelPrivateError, 
-    ChatIdInvalidError, 
-    ChatInvalidError,
-    FileMigrateError,
-    AuthBytesInvalidError,
-    FloodWaitError
-)
-from devgagan.core.fasthelper import fast_upload, fast_download, safe_turbo_download
-from telethon import functions, types
-from telethon.tl.types import DocumentAttributeVideo, Message
-from telethon.sessions import StringSession
-import pymongo
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.errors import ChannelBanned, ChannelInvalid, ChannelPrivate, ChatIdInvalid, ChatInvalid
 from pyrogram.enums import MessageMediaType, ParseMode
 from pyrogram.errors import RPCError
 from pyrogram.types import Message
 from config import MONGO_DB as MONGODB_CONNECTION_STRING, LOG_GROUP, OWNER_ID, STRING, API_ID, CONTACT, API_HASH
 from devgagan.core.mongo.db import set_session, remove_session, get_data
-from devgagantools import fast_upload as fast_uploads
-#from devgagantools import fast_download
 from devgagan.core.func import *
-from devgagan.modules.shrink import is_user_verified, get_pyro_bot, get_tele_bot
-from telethon import TelegramClient, events, Button
 from devgagan import app
-from devgagan import telethon_user_client  as gf
-from telethon.tl.types import MessageMediaDocument
 from pyrogram import filters, Client
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
-def thumbnail(sender):
-    """Get thumbnail path for user if exists"""
-    thumb_path = f'{sender}.jpg'
-    return thumb_path if os.path.exists(thumb_path) else None
-
-# MongoDB database name and collection name
-DB_NAME = "smart_users"
-COLLECTION_NAME = "super_user"
-
-VIDEO_EXTENSIONS = ['mp4', 'mov', 'avi', 'mkv', 'flv', 'wmv', 'webm', 'mpg', 'mpeg', '3gp', 'ts', 'm4v', 'f4v', 'vob']
-DOCUMENT_EXTENSIONS = ['pdf', 'docs']
-
-mongo_app = pymongo.MongoClient(MONGODB_CONNECTION_STRING)
-db = mongo_app[DB_NAME]
-collection = db[COLLECTION_NAME]
-
-if STRING:
-    from devgagan import pro
-    logger.info("App imported from package.")
-else:
-    pro = None
-    logger.info("STRING is not available. 'app' is set to None.")
-
-
-
-
-#from telethon import types
-from telethon.errors import (
-    ChannelInvalidError,
-    ChannelPrivateError,
-    ChatIdInvalidError,
-    ChatInvalidError,
-)
 
 from typing import Union, AsyncGenerator
 from pyrogram import types
-from database import db
+from db import db
 from .test import CLIENT, start_clone_bot
 from config import Config, temp
 from pyrogram.errors import FloodWait, MessageNotModified, RPCError
@@ -378,7 +304,7 @@ async def iter_messages(client, chat_id, limit, offset=0):
             )
             
             for msg in messages:
-                if msg and not msg.empty:
+                if msg:  # and not msg.empty:
                     yield msg
                     fetched += 1
                     if fetched >= limit:
@@ -418,44 +344,9 @@ async def handle_close(c: Client, cb: CallbackQuery):
 
 
 
+async def get_user_data(user_id):
+    _bot = await db.get_bot(user_id)
 
-
-
-
-async def iter_messageses(
-    bot,
-    chat_id: Union[int, str],
-    limit: int,
-    offset: int = 0,
-) -> AsyncGenerator[types.Message, None]:
-    """
-    Iterate through chat messages by incrementing message IDs.
-    Yields valid messages up to the specified limit.
-    """
-    current_id = max(1, offset)
-    yielded = 0
-
-    while yielded < limit:
-        batch_size = min(200, limit - yielded)
-        msg_ids = range(current_id, current_id + batch_size)
-
-        try:
-            messages = await bot.get_messages(chat_id, msg_ids)
-        except Exception:
-            break
-
-        found_messages = False
-        for msg in messages:
-            found_messages = True
-            yield msg
-            yielded += 1
-            if yielded >= limit:
-                break
-                
-
-        current_id += batch_size
-        if not found_messages and yielded < limit:
-            break
 
 
 
