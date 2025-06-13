@@ -1,6 +1,5 @@
 import asyncio
 from database import db
-from translation import Translation
 from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from devgagan.core.get_func import update_user_configs, parse_buttons
@@ -97,11 +96,11 @@ async def add_new_user_session(bot, query):
 async def add_new_user_session(bot, query):
     user_id = query.from_user.id
     await query.message.delete()
-    success = await handle_login_flow(bot, user_id, query)
+    success = await handle_login_flow(bot, user_id)
     if success:
         await bot.send_message(
             user_id,
-            "<b>Session Successfully Added To Database</b>",
+            "<b>✅ Login successful!\n🚀 Bot is now activated.</b>",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔙 Back", callback_data="settings#bots")]
             ])
@@ -219,7 +218,7 @@ async def display_bot_details(bot, query):
     """Displays details of the added bot/userbot."""
     user_id = query.from_user.id
     bot_data = await db.get_userbot(user_id)
-    text_template = Translation.USER_DETAILS
+    text_template =  "<b><u>📄 UserBot Details</u></b>\n\n<b>➣ Name :</b> <code>{}</code>\n<b>➣ User ID :</b> <code>{}</code>\n<b>➣ Username :</b> @{}"
     buttons = [[InlineKeyboardButton('❌ Remove ❌', callback_data=f"settings#removeuserbot")],
                [InlineKeyboardButton('🔙 Back', callback_data="settings#bots")]]
     await query.message.edit_text(
@@ -232,7 +231,7 @@ async def display_bot_details(bot, query):
     """Displays details of the added bot/userbot."""
     user_id = query.from_user.id
     bot_data = await db.get_bot(user_id)
-    text_template = Translation.BOT_DETAILS
+    text_template = "<b><u>📄 Bot Details</u></b>\n\n<b>➣ Name :</b> <code>{}</code>\n<b>➣ Bot ID :</b> <code>{}</code>\n<b>➣ Username :</b> @{}"
     buttons = [[InlineKeyboardButton('❌ Remove ❌', callback_data=f"settings#removebot")],
                [InlineKeyboardButton('🔙 Back', callback_data="settings#bots")]]
     await query.message.edit_text(
@@ -245,6 +244,7 @@ async def remove_bot_entry(bot, query):
     """Removes the stored bot/userbot entry."""
     user_id = query.from_user.id
     await db.remove_userbot(user_id)
+    await db.remove_session(user_id)
     await query.message.edit_text(
         "Successfully Updated",
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#bots")]])
