@@ -61,18 +61,10 @@ async def is_user_verified(user_id):
 
 
 
-
-# MongoDB database name and collection name
-DB_NAME = "smart_users"
-COLLECTION_NAME = "super_user"
-
-mongo_app = pymongo.MongoClient(MONGODB_CONNECTION_STRING)
-mongo_db = mongo_app[DB_NAME]
-collection = mongo_db[COLLECTION_NAME]
-
+ 
 
 bot_client_pyro = None
-bot_client_tele = None
+
 
 async def get_pyro_bot(user_id=None):
     global bot_client_pyro
@@ -80,11 +72,6 @@ async def get_pyro_bot(user_id=None):
         bot_client_pyro = await create_bot_client_pyro(user_id)
     return bot_client_pyro
 
-async def get_tele_bot(user_id=None):
-    global bot_client_tele
-    if bot_client_tele is None and user_id:
-        bot_client_tele = await create_bot_client_telethon(user_id)
-    return bot_client_tele
 
 
 async def create_bot_client_pyro(user_id):
@@ -114,26 +101,6 @@ async def create_bot_client_pyro(user_id):
 
 
 
-async def create_bot_client_telethon(user_id):
-    """Safely create and start a bot client with proper error handling"""
-    global bot_client_tele
-    sessions = await db.get_sessions(user_id)
-    if not sessions or not sessions.get("userbot_token"):
-        logger.warning(f"No userbot_token found for user {user_id}")
-        return None
-    bot_tokens = sessions.get("userbot_token")
-    bot_client_tele = TelegramClient(f"user_bot_restricted_tele_{user_id}",api_id=API_ID,api_hash=API_HASH)
-    
-    try:
-        await bot_client_tele.start(bot_token=bot_tokens)
-        logger.info(f"Bot client telethon_user_client_bot started successfully for token: {bot_tokens[:10]}...")
-        return bot_client_tele
-    except Exception as e:
-        logger.error(f"Failed to start bot client telethon_user_client_bot: {e}")
-        await bot_client_tele.stop()
-        raise RuntimeError(f"Could not start bot client telethon_user_client_bot: {str(e)}")
-
-
 
 
 async def save_userbot_token(user_id, token_string):
@@ -153,70 +120,81 @@ async def save_userbot_token(user_id, token_string):
 
 
 
+# Save to database
+#await db.save_userbot_token(user_id, token)
+#save_userbot_token(user_id, token)
+
 @app.on_message(filters.command("setbot"))
-async def setbot_handler(client: Client, message: Message):
-    """Handle bot setup process"""
+async def setbot_handler(bot: Client, message: Message):
     user_id = message.chat.id
-    
-    # Send instructions for creating bot via BotFather
+    await handle_bot_token_input(bot, user_id, message)
+
+
+
+
+async def handle_bot_token_input(bot: Client, user_id: int, message_or_query: Message | CallbackQuery):
     instructions = """
 🤖 *How to create a bot and get its token:*
 
-1. Search for @BotFather in Telegram
-2. Send `/newbot` to BotFather
-3. Choose a name for your bot (e.g., 'MY BOT')
-4. Choose a username for your bot (must be unique and end with 'bot', e.g., myuniquetestbot)
-5. After creation, BotFather will give you a *token* (like `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`)
+1. Search for @BotFather in Telegram.
+2. Send `/newbot` and follow the steps.
+3. You'll receive a token like:
+`123456789:ABCdefGhIJKlmNoPQRstuVWXyz1234567890`
 
-📌 *Please send me your bot token now (or forward the message from BotFather containing the token):*
+📌 *Send me your bot token now (or forward the BotFather message).*
+Send /cancel to stop.
     """
-    
-    await message.reply(instructions, parse_mode=ParseMode.MARKDOWN)
-    
-    # Wait for user to send token
+    await bot.send_message(user_id, instructions, parse_mode=ParseMode.MARKDOWN)
+
     try:
-        token_msg = await client.ask(
+        token_msg = await bot.ask(
             user_id,
-            "⌛ Waiting for your bot token...\n"
-            "You can send just the token or forward BotFather's message.",
+            "⌛ Waiting for your bot token...",
             filters=filters.text,
-            timeout=300  # 5 minutes timeout
+            timeout=300
         )
     except TimeoutError:
-        await message.reply("⌛ Timeout reached. Please use /setbot to try again.")
-        return
-    
-    # Extract token from message
-    token = extract_token_from_message(token_msg.text)
-    
-    if not token:
-        await message.reply(
-            "❌ Invalid token format. Please send only the token or forward BotFather's message.\n"
-            "Example token: `123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11`",
-            parse_mode=ParseMode.MARKDOWN
-        )
-        return
-    
-    # Save to database
-    await db.save_userbot_token(user_id, token)
-    #save_userbot_token(user_id, token)
-    await message.reply("✅ Bot token saved successfully! Your bot is now connected.\n"
-                        "Go to the bot and start for receiving updates \n"
-                        "If you don't start the bot you can't receive files, media, audio and other updates"
-                       )
+        await bot.send_message(user_id, "⌛ Timeout. Please try again.")
+        return False
 
-def extract_token_from_message(text: str) -> str:
-    """Extract bot token from message text"""
-    # Direct token format (numbers:letters-and-numbers)
-    if re.match(r'^\d+:[A-Za-z0-9_-]+$', text.strip()):
-        return text.strip()
-    
-    # Token in BotFather message format
-    token_match = re.search(r'(\d+:[A-Za-z0-9_-]+)', text)
-    if token_match:
-        return token_match.group(1)
-    
-    return None
+    if token_msg.text.strip().lower() == "/cancel":
+        await token_msg.reply("❌ Process cancelled.")
+        return False
+
+    # Extract token
+    token_match = re.findall(r'\d{8,10}:[0-9A-Za-z_-]{35}', token_msg.text)
+    token = token_match[0] if token_match else None
+
+    if not token:
+        await token_msg.reply("❌ Invalid bot token.")
+        return False
+
+    try:
+        bot_client = Client(name=f"userbot_{user_id}", bot_token=token)
+        await bot_client.start()
+        bot_info = await bot_client.get_me()
+    except Exception as e:
+        await token_msg.reply(f"❌ Failed to start bot:\n`{e}`", parse_mode="markdown")
+        return False
+
+    details = {
+        'id': bot_info.id,
+        'is_bot': True,
+        'user_id': user_id,
+        'name': bot_info.first_name,
+        'username': bot_info.username,
+        'token': token
+    }
+    await db.add_bot(details)
+    await db.save_userbot_token(user_id, token)
+    await token_msg.reply(
+        f"✅ Bot @{bot_info.username} connected successfully!\n"
+        f"Now start it to begin receiving updates.",
+        parse_mode="markdown"
+    )
+    await bot_client.stop()
+    return True
+
 
 
 @app.on_message(filters.command("starts"))
