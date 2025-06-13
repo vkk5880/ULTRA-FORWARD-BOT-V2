@@ -48,15 +48,15 @@ class Database:
         Fetches all data for a given user from the 'db' collection.
         This serves as the primary way to retrieve a user's document.
         """
-        return await self.db.find_one({"_id": user_id})
+        return await self.db.find_one({"user_id": user_id})
 
-    def new_user_document(self, id, name):
+    def new_user_document(self, user_id, name):
         """
         Creates a new user document structure with default values.
         This will be stored in the 'db' collection.
         """
         return {
-            "_id": id,
+            "user_id": user_id,
             "name": name,
             "ban_status": {
                 "is_banned": False,
@@ -74,20 +74,34 @@ class Database:
             "configs": DEFAULT_CONFIGS
         }
 
-    async def add_user(self, id, name):
+    async def add_user(self, user_id, name):
         """Adds a new user document to 'db' if they don't already exist."""
-        if not await self.is_user_exist(id):
-            user_doc = self.new_user_document(id, name)
+        if not await self.is_user_exist(user_id):
+            user_doc = self.new_user_document(user_id, name)
             await self.db.insert_one(user_doc)
 
-    async def is_user_exist(self, id):
+
+
+    async def update_user(self, user_id, data):
+        """update user document to 'db' """
+        await self.add_user(user_id, data["name"])
+        await self.db.update_one(
+            {"user_id": user_id},
+            {"$set": user_doc}
+        )
+       
+    
+
+
+    
+    async def is_user_exist(self, user_id):
         """Checks if a user exists in the 'db' collection."""
-        user = await self.db.find_one({'_id': int(id)})
+        user = await self.db.find_one({'user_id': int(user_id)})
         return bool(user)
 
     async def delete_user(self, user_id):
         """Deletes a user's entire document from 'db'."""
-        await self.db.delete_many({'_id': int(user_id)})
+        await self.db.delete_many({'user_id': int(user_id)})
 
     async def total_users_count(self):
         """Returns the total number of users in 'db'."""
@@ -97,38 +111,38 @@ class Database:
 
     async def set_thumbnail(self, user_id, thumb):
         await self.db.update_one(
-            {"_id": user_id},
+            {"user_id": user_id},
             {"$set": {"thumb": thumb}},
             upsert=True
         )
 
     async def remove_thumbnail(self, user_id):
-        await self.db.update_one({"_id": user_id}, {"$unset": {"thumb": ""}})
+        await self.db.update_one({"user_id": user_id}, {"$unset": {"thumb": ""}})
 
     async def set_caption(self, user_id, caption):
         await self.db.update_one(
-            {"_id": user_id},
+            {"user_id": user_id},
             {"$set": {"caption": caption}},
             upsert=True
         )
 
     async def remove_caption(self, user_id):
-        await self.db.update_one({"_id": user_id}, {"$unset": {"caption": ""}})
+        await self.db.update_one({"user_id": user_id}, {"$unset": {"caption": ""}})
 
     async def replace_caption(self, user_id, replace_txt, to_replace):
         await self.db.update_one(
-            {"_id": user_id},
+            {"user_id": user_id},
             {"$set": {"replace_txt": replace_txt, "to_replace": to_replace}},
             upsert=True
         )
 
     async def remove_replace(self, user_id):
-        await self.db.update_one({"_id": user_id}, {"$unset": {"replace_txt": "", "to_replace": ""}})
+        await self.db.update_one({"user_id": user_id}, {"$unset": {"replace_txt": "", "to_replace": ""}})
 
     async def set_session(self, user_id, session):
         """Set Pyrogram session string in the user's document."""
         await self.db.update_one(
-            {"_id": user_id},
+            {"user_id": user_id},
             {"$set": {"session": session}},
             upsert=True
         )
@@ -136,7 +150,7 @@ class Database:
     async def save_userbot_token(self, user_id, token_string):
         """Set userbot_token string in the user's document."""
         await self.db.update_one(
-            {"_id": user_id},
+            {"user_id": user_id},
             {"$set": {"userbot_token": token_string}},
             upsert=True
         )
@@ -148,7 +162,7 @@ class Database:
         """
         try:
             print(f"🔍 Fetching sessions for user {user_id}...")
-            data = await self.db.find_one({"_id": user_id})
+            data = await self.db.find_one({"user_id": user_id})
 
             if not data:
                 print("❌ No session data found for this user in database.")
@@ -169,7 +183,7 @@ class Database:
     async def remove_pyro_session(self, user_id):
         """Removes the Pyrogram session from the user's document."""
         await self.db.update_one(
-            {"_id": user_id},
+            {"user_id": user_id},
             {"$unset": {"session": ""}}
         )
 
@@ -182,28 +196,28 @@ class Database:
         data = await self.get_data(user_id)
         existing_words = data.get("clean_words", []) if data else []
         updated_words = list(set(existing_words + new_clean_words))
-        await self.db.update_one({"_id": user_id}, {"$set": {"clean_words": updated_words}}, upsert=True)
+        await self.db.update_one({"user_id": user_id}, {"$set": {"clean_words": updated_words}}, upsert=True)
 
     async def remove_clean_words(self, user_id, words_to_remove):
         """Removes specific clean words from the user's document."""
         data = await self.get_data(user_id)
         existing_words = data.get("clean_words", []) if data else []
         updated_words = [word for word in existing_words if word not in words_to_remove]
-        await self.db.update_one({"_id": user_id}, {"$set": {"clean_words": updated_words}}, upsert=True)
+        await self.db.update_one({"user_id": user_id}, {"$set": {"clean_words": updated_words}}, upsert=True)
 
     async def all_words_remove(self, user_id):
         """Removes all clean words from the user's document."""
-        await self.db.update_one({"_id": user_id}, {"$unset": {"clean_words": ""}})
+        await self.db.update_one({"user_id": user_id}, {"$unset": {"clean_words": ""}})
 
     # --- Ban Status Functions (all targeting 'db') ---
 
-    async def remove_ban(self, id):
+    async def remove_ban(self, user_id):
         """Removes ban status for a user."""
         ban_status = {
             "is_banned": False,
             "ban_reason": ''
         }
-        await self.db.update_one({'_id': id}, {'$set': {'ban_status': ban_status}})
+        await self.db.update_one({'user_id': user_id}, {'$set': {'ban_status': ban_status}})
 
     async def ban_user(self, user_id, ban_reason="No Reason"):
         """Bans a user with a given reason."""
@@ -211,15 +225,15 @@ class Database:
             "is_banned": True,
             "ban_reason": ban_reason
         }
-        await self.db.update_one({'_id': user_id}, {'$set': {'ban_status': ban_status}})
+        await self.db.update_one({'user_id': user_id}, {'$set': {'ban_status': ban_status}})
 
-    async def get_ban_status(self, id):
+    async def get_ban_status(self, user_id):
         """Retrieves the ban status for a user."""
         default = {
             "is_banned": False,
             "ban_reason": ''
         }
-        user = await self.db.find_one({'_id': int(id)})
+        user = await self.db.find_one({'user_id': int(user_id)})
         return user.get('ban_status', default) if user else default
 
     async def get_all_users(self):
@@ -229,18 +243,18 @@ class Database:
     async def get_banned(self):
         """Returns a list of IDs for all banned users."""
         users = self.db.find({'ban_status.is_banned': True})
-        b_users = [user['_id'] async for user in users]
+        b_users = [user['user_id'] async for user in users]
         return b_users
 
     # --- Configuration Functions (all targeting 'db') ---
 
-    async def update_configs(self, id, configs):
+    async def update_configs(self, user_id, configs):
         """Updates the configuration settings for a user."""
-        await self.db.update_one({'_id': int(id)}, {'$set': {'configs': configs}})
+        await self.db.update_one({'user_id': int(user_id)}, {'$set': {'configs': configs}})
 
-    async def get_configs(self, id):
+    async def get_configs(self, user_id):
         """Retrieves the configuration settings for a user, or defaults if not set."""
-        user = await self.db.find_one({'_id': int(id)})
+        user = await self.db.find_one({'user_id': int(user_id)})
         return user.get('configs', DEFAULT_CONFIGS) if user else DEFAULT_CONFIGS
 
     async def get_filters(self, user_id):
