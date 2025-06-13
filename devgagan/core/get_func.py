@@ -322,7 +322,7 @@ async def iter_messages(client, chat_id, limit, offset=0):
             logger.error(f"Message fetch error: {str(e)}")
             break
 
-@Client.on_callback_query(filters.regex(r'^terminate_frwd$'))
+@app.on_callback_query(filters.regex(r'^terminate_frwd$'))
 async def handle_terminate(c: Client, cb: CallbackQuery):
     user_id = cb.from_user.id
     if user_id in users_loop:
@@ -331,7 +331,7 @@ async def handle_terminate(c: Client, cb: CallbackQuery):
     else:
         await cb.answer("❌ No active task to cancel")
 
-@Client.on_callback_query(filters.regex(r'^fwrdstatus'))
+@app.on_callback_query(filters.regex(r'^fwrdstatus'))
 async def handle_status(c: Client, cb: CallbackQuery):
     _, status, _, percentage, _ = cb.data.split('#')
     await cb.answer(
@@ -339,7 +339,7 @@ async def handle_status(c: Client, cb: CallbackQuery):
         show_alert=True
     )
 
-@Client.on_callback_query(filters.regex(r'^close_btn$'))
+@app.on_callback_query(filters.regex(r'^close_btn$'))
 async def handle_close(c: Client, cb: CallbackQuery):
     await cb.answer()
     await cb.message.delete()
@@ -387,4 +387,42 @@ async def initialize_userbot(user_id, userbot_session):
         return userbot
     except Exception:
         return None
+
+
+
+
+def parse_buttons(text, markup=True):
+    buttons = []
+    if not text:
+        return None
+
+    for match in BTN_URL_REGEX.finditer(text):
+        n_escapes = 0
+        to_check = match.start(1) - 1
+        while to_check > 0 and text[to_check] == "\\":
+            n_escapes += 1
+            to_check -= 1
+
+        if n_escapes % 2 == 0:
+            if bool(match.group(4)) and buttons:
+                buttons[-1].append(InlineKeyboardButton(
+                    text=match.group(2),
+                    url=match.group(3).replace(" ", "")))
+            else:
+                buttons.append([InlineKeyboardButton(
+                    text=match.group(2),
+                    url=match.group(3).replace(" ", ""))])
+    if markup and buttons:
+        buttons = InlineKeyboardMarkup(buttons)
+    return buttons if buttons else None
+
+
+
+async def update_user_configs(user_id, key, value):
+  current = await db.get_configs(user_id)
+  if key in ['caption', 'duplicate', 'db_uri', 'forward_tag', 'protect', 'file_size', 'size_limit', 'extension', 'keywords', 'button']:
+     current[key] = value
+  else: 
+     current['filters'][key] = value
+  await db.update_configs(user_id, current)
 
