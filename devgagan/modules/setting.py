@@ -4,10 +4,11 @@ from translation import Translation
 from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from devgagan.core.get_func import update_user_configs, parse_buttons, set_bot, set_userbot
+from devgagan import app
 
 # --- Message Handlers ---
 
-@Client.on_message(filters.private & filters.command(['settings']))
+@app.on_message(filters.private & filters.command(['settings']))
 async def show_main_settings(client, message):
     """
     Handles the /settings command to display the main settings menu.
@@ -20,7 +21,7 @@ async def show_main_settings(client, message):
 
 # --- Callback Query Handlers ---
 
-@Client.on_callback_query(filters.regex(r'^settings#main'))
+@app.on_callback_query(filters.regex(r'^settings#main'))
 async def handle_main_settings_query(bot, query):
     """Handles callback for the main settings menu."""
     await query.message.edit_text(
@@ -28,7 +29,7 @@ async def handle_main_settings_query(bot, query):
         reply_markup=generate_main_settings_buttons()
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#bots'))
+@app.on_callback_query(filters.regex(r'^settings#bots'))
 async def display_bot_settings(bot, query):
     """Displays options to manage bots (add/edit)."""
     user_id = query.from_user.id
@@ -56,7 +57,7 @@ async def display_bot_settings(bot, query):
         reply_markup=InlineKeyboardMarkup(buttons)
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#addbot'))
+@app.on_callback_query(filters.regex(r'^settings#addbot'))
 async def add_new_bot_token(bot, query):
     """Initiates the process to add a new bot token."""
     user_id = query.from_user.id
@@ -68,7 +69,7 @@ async def add_new_bot_token(bot, query):
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#bots")]])
         )
 
-@Client.on_callback_query(filters.regex(r'^settings#adduserbot'))
+@app.on_callback_query(filters.regex(r'^settings#adduserbot'))
 async def add_new_user_session(bot, query):
     """Initiates the process to add a new user session."""
     user_id = query.from_user.id
@@ -80,7 +81,7 @@ async def add_new_user_session(bot, query):
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#bots")]])
         )
 
-@Client.on_callback_query(filters.regex(r'^settings#channels'))
+@app.on_callback_query(filters.regex(r'^settings#channels'))
 async def display_channel_settings(bot, query):
     """Displays options to manage channels (add/edit/remove)."""
     user_id = query.from_user.id
@@ -98,7 +99,7 @@ async def display_channel_settings(bot, query):
         reply_markup=InlineKeyboardMarkup(buttons)
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#addchannel'))
+@app.on_callback_query(filters.regex(r'^settings#addchannel'))
 async def process_add_chat(bot, query):
     """Processes the addition of a new channel or group."""
     user_id = query.from_user.id
@@ -187,7 +188,7 @@ async def process_add_chat(bot, query):
 
 
 
-@Client.on_callback_query(filters.regex(r'^settings#edituserbot'))
+@app.on_callback_query(filters.regex(r'^settings#edituserbot'))
 async def display_bot_details(bot, query):
     """Displays details of the added bot/userbot."""
     user_id = query.from_user.id
@@ -200,7 +201,7 @@ async def display_bot_details(bot, query):
         reply_markup=InlineKeyboardMarkup(buttons)
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#editbot'))
+@app.on_callback_query(filters.regex(r'^settings#editbot'))
 async def display_bot_details(bot, query):
     """Displays details of the added bot/userbot."""
     user_id = query.from_user.id
@@ -213,7 +214,7 @@ async def display_bot_details(bot, query):
         reply_markup=InlineKeyboardMarkup(buttons)
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#removeuserbot'))
+@app.on_callback_query(filters.regex(r'^settings#removeuserbot'))
 async def remove_bot_entry(bot, query):
     """Removes the stored bot/userbot entry."""
     user_id = query.from_user.id
@@ -224,7 +225,7 @@ async def remove_bot_entry(bot, query):
     )
 
 
-@Client.on_callback_query(filters.regex(r'^settings#removebot'))
+@app.on_callback_query(filters.regex(r'^settings#removebot'))
 async def remove_bot_entry(bot, query):
     """Removes the stored bot/userbot entry."""
     user_id = query.from_user.id
@@ -234,7 +235,7 @@ async def remove_bot_entry(bot, query):
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#bots")]])
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#editchannels_'))
+@app.on_callback_query(filters.regex(r'^settings#editchannels_'))
 async def display_channel_details(bot, query):
     """Displays details of a specific channel."""
     user_id = query.from_user.id
@@ -247,7 +248,7 @@ async def display_channel_details(bot, query):
         reply_markup=InlineKeyboardMarkup(buttons)
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#removechannel_'))
+@app.on_callback_query(filters.regex(r'^settings#removechannel_'))
 async def remove_channel_entry(bot, query):
     """Removes a channel entry from the database."""
     user_id = query.from_user.id
@@ -258,7 +259,7 @@ async def remove_channel_entry(bot, query):
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#channels")]])
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#caption'))
+@app.on_callback_query(filters.regex(r'^settings#caption'))
 async def display_caption_settings(bot, query):
     """Displays options for managing custom captions."""
     user_id = query.from_user.id
@@ -276,7 +277,7 @@ async def display_caption_settings(bot, query):
         reply_markup=InlineKeyboardMarkup(buttons)
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#seecaption'))
+@app.on_callback_query(filters.regex(r'^settings#seecaption'))
 async def display_current_caption(bot, query):
     """Displays the currently set custom caption."""
     user_id = query.from_user.id
@@ -289,7 +290,7 @@ async def display_current_caption(bot, query):
         reply_markup=InlineKeyboardMarkup(buttons)
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#deletecaption'))
+@app.on_callback_query(filters.regex(r'^settings#deletecaption'))
 async def delete_custom_caption(bot, query):
     """Deletes the custom caption."""
     user_id = query.from_user.id
@@ -299,7 +300,7 @@ async def delete_custom_caption(bot, query):
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#caption")]])
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#addcaption'))
+@app.on_callback_query(filters.regex(r'^settings#addcaption'))
 async def prompt_add_or_edit_caption(bot, query):
     """Prompts the user to send a new custom caption."""
     user_id = query.from_user.id
@@ -332,7 +333,7 @@ async def prompt_add_or_edit_caption(bot, query):
                                         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#caption")]])
         )
 
-@Client.on_callback_query(filters.regex(r'^settings#button'))
+@app.on_callback_query(filters.regex(r'^settings#button'))
 async def display_button_settings(bot, query):
     """Displays options for managing custom buttons."""
     user_id = query.from_user.id
@@ -350,7 +351,7 @@ async def display_button_settings(bot, query):
         reply_markup=InlineKeyboardMarkup(buttons)
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#addbutton'))
+@app.on_callback_query(filters.regex(r'^settings#addbutton'))
 async def prompt_add_custom_button(bot, query):
     """Prompts the user to send a new custom button format."""
     user_id = query.from_user.id
@@ -394,7 +395,7 @@ async def prompt_add_custom_button(bot, query):
         )
 
 
-@Client.on_callback_query(filters.regex(r'^settings#seebutton'))
+@app.on_callback_query(filters.regex(r'^settings#seebutton'))
 async def display_current_button(bot, query):
     """Displays the currently set custom button."""
     user_id = query.from_user.id
@@ -409,7 +410,7 @@ async def display_current_button(bot, query):
         reply_markup=InlineKeyboardMarkup(parsed_buttons)
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#deletebutton'))
+@app.on_callback_query(filters.regex(r'^settings#deletebutton'))
 async def delete_custom_button(bot, query):
     """Deletes the custom button."""
     user_id = query.from_user.id
@@ -419,7 +420,7 @@ async def delete_custom_button(bot, query):
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#button")]])
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#database'))
+@app.on_callback_query(filters.regex(r'^settings#database'))
 async def display_database_settings(bot, query):
     """Displays options for managing the MongoDB database URL."""
     user_id = query.from_user.id
@@ -437,7 +438,7 @@ async def display_database_settings(bot, query):
         reply_markup=InlineKeyboardMarkup(buttons)
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#addurl'))
+@app.on_callback_query(filters.regex(r'^settings#addurl'))
 async def prompt_add_mongodb_url(bot, query):
     """Prompts the user to send their MongoDB URL."""
     user_id = query.from_user.id
@@ -457,7 +458,7 @@ async def prompt_add_mongodb_url(bot, query):
                            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#database")]])
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#seeurl'))
+@app.on_callback_query(filters.regex(r'^settings#seeurl'))
 async def display_mongodb_url(bot, query):
     """Displays the currently set MongoDB URL."""
     user_id = query.from_user.id
@@ -465,7 +466,7 @@ async def display_mongodb_url(bot, query):
     db_uri = user_configs.get('db_uri')
     await query.answer(f"Database URL : {db_uri}", show_alert=True)
 
-@Client.on_callback_query(filters.regex(r'^settings#deleteurl'))
+@app.on_callback_query(filters.regex(r'^settings#deleteurl'))
 async def delete_mongodb_url(bot, query):
     """Deletes the MongoDB URL."""
     user_id = query.from_user.id
@@ -475,7 +476,7 @@ async def delete_mongodb_url(bot, query):
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#database")]])
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#filters'))
+@app.on_callback_query(filters.regex(r'^settings#filters'))
 async def display_filter_settings(bot, query):
     """Displays the main filter settings."""
     user_id = query.from_user.id
@@ -484,7 +485,7 @@ async def display_filter_settings(bot, query):
         reply_markup=await generate_filter_buttons(user_id)
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#nextfilters'))
+@app.on_callback_query(filters.regex(r'^settings#nextfilters'))
 async def display_extra_filter_settings(bot, query):
     """Displays extra filter settings."""
     user_id = query.from_user.id
@@ -492,7 +493,7 @@ async def display_extra_filter_settings(bot, query):
         reply_markup=await generate_extra_filter_buttons(user_id)
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#updatefilter-'))
+@app.on_callback_query(filters.regex(r'^settings#updatefilter-'))
 async def update_filter_setting(bot, query):
     """Updates a specific filter setting."""
     user_id = query.from_user.id
@@ -507,7 +508,7 @@ async def update_filter_setting(bot, query):
         reply_markup=await generate_filter_buttons(user_id)
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#file_size'))
+@app.on_callback_query(filters.regex(r'^settings#file_size'))
 async def display_file_size_settings(bot, query):
     """Displays settings related to file size limits."""
     user_id = query.from_user.id
@@ -519,7 +520,7 @@ async def display_file_size_settings(bot, query):
         reply_markup=generate_size_adjustment_buttons(size_limit_mb)
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#update_size-'))
+@app.on_callback_query(filters.regex(r'^settings#update_size-'))
 async def update_file_size_limit(bot, query):
     """Updates the file size limit."""
     user_id = query.from_user.id
@@ -534,7 +535,7 @@ async def update_file_size_limit(bot, query):
         reply_markup=generate_size_adjustment_buttons(new_size)
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#update_limit-'))
+@app.on_callback_query(filters.regex(r'^settings#update_limit-'))
 async def update_size_limit_type(bot, query):
     """Updates whether files greater than, less than, or exactly a size are forwarded."""
     user_id = query.from_user.id
@@ -547,7 +548,7 @@ async def update_size_limit_type(bot, query):
         reply_markup=generate_size_adjustment_buttons(current_size)
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#add_extension'))
+@app.on_callback_query(filters.regex(r'^settings#add_extension'))
 async def prompt_add_extensions(bot, query):
     """Prompts the user to send file extensions to filter."""
     user_id = query.from_user.id
@@ -568,7 +569,7 @@ async def prompt_add_extensions(bot, query):
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#get_extension")]])
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#get_extension'))
+@app.on_callback_query(filters.regex(r'^settings#get_extension'))
 async def display_extensions_settings(bot, query):
     """Displays the list of currently filtered extensions."""
     user_id = query.from_user.id
@@ -583,7 +584,7 @@ async def display_extensions_settings(bot, query):
         reply_markup=InlineKeyboardMarkup(buttons)
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#rmve_all_extension'))
+@app.on_callback_query(filters.regex(r'^settings#rmve_all_extension'))
 async def remove_all_extensions(bot, query):
     """Removes all stored file extensions."""
     user_id = query.from_user.id
@@ -593,7 +594,7 @@ async def remove_all_extensions(bot, query):
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#get_extension")]])
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#add_keyword'))
+@app.on_callback_query(filters.regex(r'^settings#add_keyword'))
 async def prompt_add_keywords(bot, query):
     """Prompts the user to send keywords to filter."""
     user_id = query.from_user.id
@@ -614,7 +615,7 @@ async def prompt_add_keywords(bot, query):
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#get_keyword")]])
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#get_keyword'))
+@app.on_callback_query(filters.regex(r'^settings#get_keyword'))
 async def display_keywords_settings(bot, query):
     """Displays the list of currently filtered keywords."""
     user_id = query.from_user.id
@@ -629,7 +630,7 @@ async def display_keywords_settings(bot, query):
         reply_markup=InlineKeyboardMarkup(buttons)
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#rmve_all_keyword'))
+@app.on_callback_query(filters.regex(r'^settings#rmve_all_keyword'))
 async def remove_all_keywords(bot, query):
     """Removes all stored keywords."""
     user_id = query.from_user.id
@@ -639,7 +640,7 @@ async def remove_all_keywords(bot, query):
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#get_keyword")]])
     )
 
-@Client.on_callback_query(filters.regex(r'^settings#alert_'))
+@app.on_callback_query(filters.regex(r'^settings#alert_'))
 async def handle_alert_query(bot, query):
     """Handles alert callbacks to show simple pop-ups."""
     alert_text = query.data.split('_')[1]
