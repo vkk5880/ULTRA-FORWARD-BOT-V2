@@ -287,26 +287,27 @@ class Database:
     async def total_users_userbots_count(self):
         """Returns counts of total users and bots."""
         bcount = await self.bots.count_documents({})
+        ubcount = await self.user_bots.count_documents({})
         # Count users from the main 'db' collection
         ucount = await self.db.count_documents({})
-        return ucount, bcount
+        return ucount, bcount, ubcount
 
     async def add_userbot(self, datas):
         """Adds a new bot to the 'bots' collection if it doesn't already exist."""
-        if not await self.is_bot_exist(datas['user_id']):
-            await self.bots.insert_one(datas)
+        if not await self.is_userbot_exist(datas['user_id']):
+            await self.user_bots.insert_one(datas)
 
     async def remove_userbot(self, user_id):
         """Removes a bot from the 'bots' collection."""
-        await self.bots.delete_many({'user_id': int(user_id)})
+        await self.user_bots.delete_many({'user_id': int(user_id)})
 
     async def get_userbot(self, user_id: int):
         """Retrieves bot data from the 'bots' collection."""
-        return await self.bots.find_one({'user_id': user_id})
+        return await self.user_bots.find_one({'user_id': user_id})
 
     async def is_userbot_exist(self, user_id):
         """Checks if a bot exists in the 'bots' collection."""
-        return bool(await self.bots.find_one({'user_id': user_id}))
+        return bool(await self.user_bots.find_one({'user_id': user_id}))
 
 
     
