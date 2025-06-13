@@ -3,10 +3,9 @@ from database import db
 from config import Config
 from translation import Translation
 from pyrogram import Client, filters, enums
-from .test import get_user_configs, update_user_configs, CLIENT, parse_buttons
+from .test import  db.get_configs, update_user_configs, CLIENT, parse_buttons
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-
-user_client_manager = CLIENT()
+from devgagan.core.get_func import update_user_configs
 
 # --- Message Handlers ---
 
@@ -37,12 +36,19 @@ async def display_bot_settings(bot, query):
     user_id = query.from_user.id
     buttons = []
     bot_data = await db.get_bot(user_id)
-    if bot_data:
+    userbot_data = await db.get_userbot(user_id)
+    if bot_data and bot_data.get('bot_token'):
         buttons.append([InlineKeyboardButton(bot_data['name'],
                                              callback_data=f"settings#editbot")])
+
     else:
         buttons.append([InlineKeyboardButton('✚ Add Bot ✚',
                                              callback_data="settings#addbot")])
+
+    if bot_data and userbot_data.get('userbot_session'):
+        buttons.append([InlineKeyboardButton(bot_data['name'],
+                                             callback_data=f"settings#edituserbot")])
+    else:
         buttons.append([InlineKeyboardButton('✚ Add User Bot ✚',
                                              callback_data="settings#adduserbot")])
     buttons.append([InlineKeyboardButton('🔙 Back',
@@ -57,7 +63,7 @@ async def add_new_bot_token(bot, query):
     """Initiates the process to add a new bot token."""
     user_id = query.from_user.id
     await query.message.delete()
-    success = await user_client_manager.add_bot(bot, query)
+    success = await set_bot(bot, query)
     if success:
         await query.message.reply_text(
             "<b>Bot Token Successfully Added To Database</b>",
@@ -69,7 +75,7 @@ async def add_new_user_session(bot, query):
     """Initiates the process to add a new user session."""
     user_id = query.from_user.id
     await query.message.delete()
-    success = await user_client_manager.add_session(bot, query)
+    success = await set_userbot(bot, query)
     if success:
         await query.message.reply_text(
             "<b>Session Successfully Added To Database</b>",
@@ -104,10 +110,10 @@ async def process_add_chat(bot, query):
             user_id,
             "<b><u>Add Channel or Group or User</u></b>\n\n"
             "If it's a **public chat**, please send its **invite link**.\n"
-            "If it's a **private chat**, please send its **username** (e.g., `@my_private_chat`) or **numeric ID**.\n\n"
+            "If it's a **private chat**, please send its **username** (e.g., `@user`) or **post link** or **numeric ID**.\n\n"
             "**Important:**\n"
-            "- For **private chats**, make me an **admin** in the chat.\n"
-            "- If you're using a **user bot**, it must have **started** your bot to function correctly.\n\n"
+            "- For **private chats**, make your bot **admin** in the chat.\n"
+            "- If you're adding a **user**, user must have **started** your bot to function correctly.\n\n"
             "/cancel - To Cancel This Process"
         )
 
@@ -183,20 +189,42 @@ async def process_add_chat(bot, query):
 
 
 
-
+@Client.on_callback_query(filters.regex(r'^settings#edituserbot'))
+async def display_bot_details(bot, query):
+    """Displays details of the added bot/userbot."""
+    user_id = query.from_user.id
+    bot_data = await db.get_userbot(user_id)
+    text_template = Translation.USER_DETAILS
+    buttons = [[InlineKeyboardButton('❌ Remove ❌', callback_data=f"settings#removeuserbot")],
+               [InlineKeyboardButton('🔙 Back', callback_data="settings#bots")]]
+    await query.message.edit_text(
+        text_template.format(bot_data['name'], bot_data['id'], bot_data['username']),
+        reply_markup=InlineKeyboardMarkup(buttons)
+    )
 
 @Client.on_callback_query(filters.regex(r'^settings#editbot'))
 async def display_bot_details(bot, query):
     """Displays details of the added bot/userbot."""
     user_id = query.from_user.id
     bot_data = await db.get_bot(user_id)
-    text_template = Translation.BOT_DETAILS if bot_data['is_bot'] else Translation.USER_DETAILS
+    text_template = Translation.BOT_DETAILS
     buttons = [[InlineKeyboardButton('❌ Remove ❌', callback_data=f"settings#removebot")],
                [InlineKeyboardButton('🔙 Back', callback_data="settings#bots")]]
     await query.message.edit_text(
         text_template.format(bot_data['name'], bot_data['id'], bot_data['username']),
         reply_markup=InlineKeyboardMarkup(buttons)
     )
+
+@Client.on_callback_query(filters.regex(r'^settings#removeuserbot'))
+async def remove_bot_entry(bot, query):
+    """Removes the stored bot/userbot entry."""
+    user_id = query.from_user.id
+    await db.remove_userbot(user_id)
+    await query.message.edit_text(
+        "Successfully Updated",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#bots")]])
+    )
+
 
 @Client.on_callback_query(filters.regex(r'^settings#removebot'))
 async def remove_bot_entry(bot, query):
@@ -237,7 +265,7 @@ async def display_caption_settings(bot, query):
     """Displays options for managing custom captions."""
     user_id = query.from_user.id
     buttons = []
-    user_configs = await get_user_configs(user_id)
+    user_configs = await  db.get_configs(user_id)
     caption_text = user_configs.get('caption')
     if caption_text:
         buttons.append([InlineKeyboardButton('👀 See Caption', callback_data="settings#seecaption")])
@@ -254,7 +282,7 @@ async def display_caption_settings(bot, query):
 async def display_current_caption(bot, query):
     """Displays the currently set custom caption."""
     user_id = query.from_user.id
-    user_configs = await get_user_configs(user_id)
+    user_configs = await  db.get_configs(user_id)
     caption_text = user_configs.get('caption')
     buttons = [[InlineKeyboardButton('✏️ Edit Caption', callback_data="settings#addcaption")],
                [InlineKeyboardButton('🔙 Back', callback_data="settings#caption")]]
@@ -311,7 +339,7 @@ async def display_button_settings(bot, query):
     """Displays options for managing custom buttons."""
     user_id = query.from_user.id
     buttons = []
-    user_configs = await get_user_configs(user_id)
+    user_configs = await  db.get_configs(user_id)
     custom_button = user_configs.get('button')
     if custom_button:
         buttons.append([InlineKeyboardButton('👀 See Button', callback_data="settings#seebutton")])
@@ -352,7 +380,7 @@ async def prompt_add_custom_button(bot, query):
 async def display_current_button(bot, query):
     """Displays the currently set custom button."""
     user_id = query.from_user.id
-    user_configs = await get_user_configs(user_id)
+    user_configs = await  db.get_configs(user_id)
     button_html = user_configs.get('button')
     parsed_buttons = parse_buttons(button_html, markup=False)
     parsed_buttons.append([InlineKeyboardButton("🔙 Back", "settings#button")])
@@ -376,7 +404,7 @@ async def display_database_settings(bot, query):
     """Displays options for managing the MongoDB database URL."""
     user_id = query.from_user.id
     buttons = []
-    user_configs = await get_user_configs(user_id)
+    user_configs = await  db.get_configs(user_id)
     db_uri = user_configs.get('db_uri')
     if db_uri:
         buttons.append([InlineKeyboardButton('👀 See URL', callback_data="settings#seeurl")])
@@ -413,7 +441,7 @@ async def prompt_add_mongodb_url(bot, query):
 async def display_mongodb_url(bot, query):
     """Displays the currently set MongoDB URL."""
     user_id = query.from_user.id
-    user_configs = await get_user_configs(user_id)
+    user_configs = await  db.get_configs(user_id)
     db_uri = user_configs.get('db_uri')
     await query.answer(f"Database URL : {db_uri}", show_alert=True)
 
@@ -463,7 +491,7 @@ async def update_filter_setting(bot, query):
 async def display_file_size_settings(bot, query):
     """Displays settings related to file size limits."""
     user_id = query.from_user.id
-    user_configs = await get_user_configs(user_id)
+    user_configs = await  db.get_configs(user_id)
     size_limit_mb = user_configs.get('file_size', 0)
     limit_text, comparison_word = get_size_limit_display(user_configs.get('size_limit'))
     await query.message.edit_text(
@@ -479,7 +507,7 @@ async def update_file_size_limit(bot, query):
     if not (0 <= new_size <= 2000):
         return await query.answer("Size Limit Exceeded (0-2000 MB)", show_alert=True)
     await update_user_configs(user_id, 'file_size', new_size)
-    user_configs = await get_user_configs(user_id)
+    user_configs = await  db.get_configs(user_id)
     limit_text, comparison_word = get_size_limit_display(user_configs.get('size_limit'))
     await query.message.edit_text(
         f'<b><u>Size Limit</u></b>\n\nYou Can Set File Size Limit To Forward\n\nStatus : Files With {comparison_word} `{new_size} MB` Will Forward',
@@ -511,7 +539,7 @@ async def prompt_add_extensions(bot, query):
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#get_extension")]])
         )
     new_extensions = ext_input.text.split(" ")
-    user_configs = await get_user_configs(user_id)
+    user_configs = await  db.get_configs(user_id)
     current_extensions = user_configs.get('extension') or []
     current_extensions.extend(new_extensions)
     await update_user_configs(user_id, 'extension', current_extensions)
@@ -524,7 +552,7 @@ async def prompt_add_extensions(bot, query):
 async def display_extensions_settings(bot, query):
     """Displays the list of currently filtered extensions."""
     user_id = query.from_user.id
-    user_configs = await get_user_configs(user_id)
+    user_configs = await  db.get_configs(user_id)
     extensions = user_configs.get('extension')
     buttons = create_dynamic_buttons_for_list(extensions)
     buttons.append([InlineKeyboardButton('✚ Add ✚', 'settings#add_extension')])
@@ -557,7 +585,7 @@ async def prompt_add_keywords(bot, query):
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#get_keyword")]])
         )
     new_keywords = keyword_input.text.split(" ")
-    user_configs = await get_user_configs(user_id)
+    user_configs = await  db.get_configs(user_id)
     current_keywords = user_configs.get('keywords') or []
     current_keywords.extend(new_keywords)
     await update_user_configs(user_id, 'keywords', current_keywords)
@@ -570,7 +598,7 @@ async def prompt_add_keywords(bot, query):
 async def display_keywords_settings(bot, query):
     """Displays the list of currently filtered keywords."""
     user_id = query.from_user.id
-    user_configs = await get_user_configs(user_id)
+    user_configs = await  db.get_configs(user_id)
     keywords = user_configs.get('keywords')
     buttons = create_dynamic_buttons_for_list(keywords)
     buttons.append([InlineKeyboardButton('✚ Add ✚', 'settings#add_keyword')])
@@ -679,7 +707,7 @@ def generate_size_adjustment_buttons(current_size):
 
 async def generate_filter_buttons(user_id):
     """Generates inline keyboard for main filter settings."""
-    user_configs = await get_user_configs(user_id)
+    user_configs = await  db.get_configs(user_id)
     filters = user_configs.get('filters', {})
     buttons = [
         [
@@ -730,7 +758,7 @@ async def generate_filter_buttons(user_id):
 
 async def generate_extra_filter_buttons(user_id):
     """Generates inline keyboard for extra filter settings."""
-    user_configs = await get_user_configs(user_id)
+    user_configs = await  db.get_configs(user_id)
     filters = user_configs.get('filters', {})
     buttons = [
         [
