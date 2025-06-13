@@ -3,8 +3,10 @@ from database import db
 from translation import Translation
 from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from devgagan.core.get_func import update_user_configs, parse_buttons, set_bot, set_userbot
+from devgagan.core.get_func import update_user_configs, parse_buttons
 from devgagan import app
+from devgagan.modules.login import handle_login_flow,
+from devgagan.modules.shrink import handle_bot_token_input
 
 # --- Message Handlers ---
 
@@ -57,28 +59,52 @@ async def display_bot_settings(bot, query):
         reply_markup=InlineKeyboardMarkup(buttons)
     )
 
+
 @app.on_callback_query(filters.regex(r'^settings#addbot'))
-async def add_new_bot_token(bot, query):
-    """Initiates the process to add a new bot token."""
+async def add_new_user_session(bot, query):
     user_id = query.from_user.id
     await query.message.delete()
-    success = await set_bot(bot, query)
+    success = await handle_bot_token_input(bot, user_id, query)
     if success:
-        await query.message.reply_text(
+        await bot.send_message(
+            user_id,
             "<b>Bot Token Successfully Added To Database</b>",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#bots")]])
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back", callback_data="settings#bots")]
+            ])
         )
+
+
+
 
 @app.on_callback_query(filters.regex(r'^settings#adduserbot'))
 async def add_new_user_session(bot, query):
-    """Initiates the process to add a new user session."""
     user_id = query.from_user.id
     await query.message.delete()
-    success = await set_userbot(bot, query)
+    buttons = []
+    buttons.append([InlineKeyboardButton("🔐 Login", callback_data="settings#login")])
+    buttons.append([InlineKeyboardButton('🔙 Back', callback_data="settings#bots")])
+    
+    # Send inline button that sends /login when clicked
+    await bot.send_message(
+        user_id,
+        "Click the button below to login and start your session:",
+        reply_markup=InlineKeyboardMarkup(buttons)
+    )
+
+
+@app.on_callback_query(filters.regex(r'^settings#login'))
+async def add_new_user_session(bot, query):
+    user_id = query.from_user.id
+    await query.message.delete()
+    success = await handle_login_flow(bot, user_id, query)
     if success:
-        await query.message.reply_text(
+        await bot.send_message(
+            user_id,
             "<b>Session Successfully Added To Database</b>",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#bots")]])
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔙 Back", callback_data="settings#bots")]
+            ])
         )
 
 @app.on_callback_query(filters.regex(r'^settings#channels'))
