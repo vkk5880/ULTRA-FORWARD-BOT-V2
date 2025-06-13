@@ -1,11 +1,12 @@
 import asyncio
-from database import db
+from devgagan.core.mongo.db import db, DEFAULT_CONFIGS 
 from pyrogram import Client, filters, enums
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from devgagan.core.get_func import update_user_configs, parse_buttons
 from devgagan import app
 from devgagan.modules.login import handle_login_flow,
 from devgagan.modules.shrink import handle_bot_token_input
+from config import CHANNEL_ID, OWNER_ID 
 
 # --- Message Handlers ---
 
@@ -20,6 +21,20 @@ async def show_main_settings(client, message):
         quote=True
     )
 
+
+
+@app.on_message(filters.private & filters.command('reset'))
+async def forward_tag(bot, m):
+    await db.update_configs(m.from_user.id, DEFAULT_CONFIGS)
+    await m.reply("Settings successfully reset ✔️")
+
+
+
+@app.on_message(filters.command('resetall') & filters.user(OWNER_ID))
+async def resetall(bot, message):
+    await db.update_configs_for_all(DEFAULT_CONFIGS)
+    await m.reply("Settings successfully reset ✔️")
+    
 # --- Callback Query Handlers ---
 
 @app.on_callback_query(filters.regex(r'^settings#main'))
