@@ -1,11 +1,9 @@
 import asyncio
 from database import db
-from config import Config
 from translation import Translation
 from pyrogram import Client, filters, enums
-from .test import  db.get_configs, update_user_configs, CLIENT, parse_buttons
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from devgagan.core.get_func import update_user_configs
+from devgagan.core.get_func import update_user_configs, parse_buttons, set_bot, set_userbot
 
 # --- Message Handlers ---
 
@@ -358,34 +356,56 @@ async def prompt_add_custom_button(bot, query):
     user_id = query.from_user.id
     await query.message.delete()
     try:
-        instruction_msg = await bot.send_message(user_id, text="**Send your custom button.\n\nFORMAT:**\n`[forward bot][buttonurl:https://t.me/KR_Forward_Bot]`\n")
+        instruction_msg = await bot.send_message(
+            user_id,
+            text="**Send your custom button.**\n\n"
+                 "**FORMAT:**\n"
+                 "`[Forward Bot][buttonurl:https://t.me/KR_Forward_Bot]`"
+        )
+
         button_input = await bot.listen(chat_id=user_id, timeout=300)
-        parsed_button = parse_buttons(button_input.text.html)
+        parsed_button = parse_buttons(button_input.text)
+
         if not parsed_button:
             await button_input.delete()
-            return await instruction_msg.edit_text("Invalid Button",
-                                                  reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#button")]])
+            return await instruction_msg.edit_text(
+                "❌ Invalid format.\n\nPlease use this format:\n"
+                "`[Button Text][buttonurl:https://example.com]`",
+                reply_markup=InlineKeyboardMarkup(
+                    [[InlineKeyboardButton('🔙 Back', callback_data="settings#button")]]
+                )
             )
-        await update_user_configs(user_id, 'button', button_input.text.html)
+
+        await update_user_configs(user_id, 'button', button_input.text)
         await button_input.delete()
-        await instruction_msg.edit_text("Successfully Button Added",
-                                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#button")]])
+        await instruction_msg.edit_text(
+            "✅ Successfully Button Added",
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton('🔙 Back', callback_data="settings#button")]]
+            )
         )
+
     except asyncio.exceptions.TimeoutError:
-        await instruction_msg.edit_text('Process Has Been Automatically Cancelled',
-                                        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🔙 Back', callback_data="settings#button")]])
+        await instruction_msg.edit_text(
+            '⏳ Process Has Been Automatically Cancelled',
+            reply_markup=InlineKeyboardMarkup(
+                [[InlineKeyboardButton('🔙 Back', callback_data="settings#button")]]
+            )
         )
+
 
 @Client.on_callback_query(filters.regex(r'^settings#seebutton'))
 async def display_current_button(bot, query):
     """Displays the currently set custom button."""
     user_id = query.from_user.id
-    user_configs = await  db.get_configs(user_id)
-    button_html = user_configs.get('button')
-    parsed_buttons = parse_buttons(button_html, markup=False)
+    user_configs = await db.get_configs(user_id)
+    button_html = user_configs.get('button') or ""
+
+    parsed_buttons = parse_buttons(button_html, markup=False) or []
     parsed_buttons.append([InlineKeyboardButton("🔙 Back", "settings#button")])
+
     await query.message.edit_text(
-        "**Your Custom Button**",
+        "**Your Custom Button:**",
         reply_markup=InlineKeyboardMarkup(parsed_buttons)
     )
 
