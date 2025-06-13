@@ -45,7 +45,7 @@ async def clear_db(client, message):
     user_id = message.chat.id
     files_deleted = await delete_session_files(user_id)
     try:
-        await db.remove_session(user_id)
+        await db.remove_userbot(user_id)
         """await db.user_sessions_real.update_one(
             {"user_id": user_id},
             {"$set": {"session_string": None}}
