@@ -2,7 +2,7 @@ import re
 import asyncio
 import time
 from devgagan import app
-from db import db
+from from devgagan.core.mongo.db import db
 from pyrogram import Client, filters, enums
 from pyrogram.errors import FloodWait
 from pyrogram.errors.exceptions.not_acceptable_406 import ChannelPrivate as PrivateChat
