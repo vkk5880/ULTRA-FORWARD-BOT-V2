@@ -34,6 +34,7 @@ class Database:
         self.db = self._client[database_name].db # Renamed from .users_data_db
 
         self.bots = self._client[database_name].bots
+        self.user_bots = self._client[database_name].user_bots
         self.notify = self._client[database_name].notify
         self.channels = self._client[database_name].channels
 
@@ -277,6 +278,38 @@ class Database:
         """Checks if a bot exists in the 'bots' collection."""
         return bool(await self.bots.find_one({'user_id': user_id}))
 
+
+
+
+
+    # --- User Bot-related Functions ---
+
+    async def total_users_userbots_count(self):
+        """Returns counts of total users and bots."""
+        bcount = await self.bots.count_documents({})
+        # Count users from the main 'db' collection
+        ucount = await self.db.count_documents({})
+        return ucount, bcount
+
+    async def add_userbot(self, datas):
+        """Adds a new bot to the 'bots' collection if it doesn't already exist."""
+        if not await self.is_bot_exist(datas['user_id']):
+            await self.bots.insert_one(datas)
+
+    async def remove_userbot(self, user_id):
+        """Removes a bot from the 'bots' collection."""
+        await self.bots.delete_many({'user_id': int(user_id)})
+
+    async def get_userbot(self, user_id: int):
+        """Retrieves bot data from the 'bots' collection."""
+        return await self.bots.find_one({'user_id': user_id})
+
+    async def is_userbot_exist(self, user_id):
+        """Checks if a bot exists in the 'bots' collection."""
+        return bool(await self.bots.find_one({'user_id': user_id}))
+
+
+    
     # --- Channel-related Functions (still in 'channels' collection) ---
 
     async def total_channels(self):
