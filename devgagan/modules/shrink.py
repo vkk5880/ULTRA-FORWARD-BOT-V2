@@ -18,18 +18,13 @@ import logging
 from pyrogram.enums import ParseMode
 import sys # Import sys for standard output
 from pyrogram import filters, Client
-from telethon import TelegramClient
 import pymongo
-from devgagan.core.mongo import db
-from devgagan.core.mongo.db import user_sessions_real
- 
-tclient = AsyncIOMotorClient(MONGO_DB)
-tdb = tclient["telegram_bot"]
-token = tdb["tokens"]
+from devgagan.core.mongo.db import db
+
  
  
 async def create_ttl_index():
-    await token.create_index("expires_at", expireAfterSeconds=0)
+    await db.create_ttl_index()
  
  
  
@@ -54,15 +49,7 @@ async def get_shortened_url(deep_link):
     return None
  
  
-async def is_user_verified(user_id):
-    """Check if a user has an active session."""
-    session = await token.find_one({"user_id": user_id})
-    return session is not None
-
-
-
  
-
 bot_client_pyro = None
 
 
@@ -112,11 +99,7 @@ async def save_userbot_token(user_id, token_string):
         "userbot_token": token_string
     }
     
-    await db.user_sessions_real.update_one(
-        {"user_id": user_id},
-        {"$set": update_data},
-        upsert=True
-    )
+    await db.update_user(user_id, update_data)
 
 
 
@@ -257,7 +240,7 @@ async def smart_handler(client, message):
     if freecheck != 1:
         await message.reply("You are a premium user no need of token 😉")
         return
-    if await is_user_verified(user_id):
+    if await db.is_user_verified(user_id):
         await message.reply("✅ Your free session is already active enjoy!")
     else:
          
