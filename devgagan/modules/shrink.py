@@ -9,7 +9,7 @@ from devgagan.core.func import *
 from datetime import datetime, timedelta
 from motor.motor_asyncio import AsyncIOMotorClient
 from config import MONGO_DB, WEBSITE_URL, AD_API, CONTACT, LOG_GROUP  
-from config import MONGO_DB as MONGODB_CONNECTION_STRING, LOG_GROUP, OWNER_ID, STRING, API_ID, CONTACT, API_HASH, CHANNEL_LINK
+from config import MONGO_DB as MONGODB_CONNECTION_STRING, LOG_GROUP, OWNER_ID, STRING, API_ID, CONTACT, API_HASH, CHANNEL_LINK, CAPTION
 from config import LOG_GROUP
 import re
 from devgagan.core.mongo import db
@@ -126,7 +126,7 @@ async def handle_bot_token_input(bot: Client, user_id: int, message_or_query: Me
 📌 *Send me your bot token now (or forward the BotFather message).*
 Send /cancel to stop.
     """
-    await bot.send_message(user_id, instructions, parse_mode=ParseMode.MARKDOWN)
+    instructions_msg = await bot.send_message(user_id, instructions, parse_mode=ParseMode.MARKDOWN)
 
     try:
         token_msg = await bot.ask(
@@ -136,11 +136,19 @@ Send /cancel to stop.
             timeout=300
         )
     except TimeoutError:
-        await bot.send_message(user_id, "⌛ Timeout. Please try again.")
+        reply = await bot.send_message(user_id, "⌛ Timeout. Please try again.")
+        instructions_msg.delete()
+        asinciyo.sleep(3)
+        token_msg.delete()
+        reply.delete()
         return False
 
     if token_msg.text.strip().lower() == "/cancel":
-        await token_msg.reply("❌ Process cancelled.")
+        reply = await token_msg.reply("❌ Process cancelled.")
+        instructions_msg.delete()
+        asinciyo.sleep(3)
+        token_msg.delete()
+        reply.delete()
         return False
 
     # Extract token
@@ -148,7 +156,11 @@ Send /cancel to stop.
     token = token_match[0] if token_match else None
 
     if not token:
-        await token_msg.reply("❌ Invalid bot token.")
+        reply = await token_msg.reply("❌ Invalid bot token.")
+        instructions_msg.delete()
+        asinciyo.sleep(3)
+        token_msg.delete()
+        reply.delete()
         return False
 
     try:
@@ -161,7 +173,11 @@ Send /cancel to stop.
         await bot_client.start()
         bot_info = await bot_client.get_me()
     except Exception as e:
-        await token_msg.reply(f"❌ Failed to start bot:\n`{e}`", parse_mode=ParseMode.MARKDOWN)
+        reply = await token_msg.reply(f"❌ Failed to start bot:\n`{e}`", parse_mode=ParseMode.MARKDOWN)
+        instructions_msg.delete()
+        asinciyo.sleep(3)
+        token_msg.delete()
+        reply.delete()
         return False
 
     details = {
@@ -177,7 +193,7 @@ Send /cancel to stop.
     await token_msg.reply(
         f"✅ Bot @{bot_info.username} connected successfully!\n"
         f"Now start it to begin receiving updates.",
-        parse_mode="markdown"
+        parse_mode=ParseMode.MARKDOWN
     )
     await bot_client.stop()
     return True
@@ -190,11 +206,10 @@ async def token_handler(client, message):
     join = await subscribe(client, message)
     if join == 1:
         return
-    chat_id = "still_waiting_for_uh"
-    msg = await app.get_messages(chat_id,5)
+    chat_id = "tgbotdatas"
+    msg = await app.get_messages(chat_id,2)
     user_id = message.chat.id
     if len(message.command) <= 1:
-        image_url = "https://tecolotito.elsiglocoahuila.mx/i/2023/12/2131463.jpeg"
         join_button = InlineKeyboardButton("Join Channel", url="https://t.me/+9FZJh0WMZnE4YWRk")
         premium = InlineKeyboardButton("Get Premium", url=CONTACT)   
         keyboard = InlineKeyboardMarkup([
@@ -204,11 +219,7 @@ async def token_handler(client, message):
          
         await message.reply_photo(
             msg.photo.file_id,
-            caption=(
-                "Hi 👋 Welcome, Wanna intro...?\n\n"
-                "✳️ I can save posts from channels or groups where forwarding is off. I can download videos/audio from YT, INSTA, ... social platforms\n"
-                "✳️ Simply send the post link of a public channel. For private channels, do /login. Send /help to know more."
-            ),
+            caption=CAPTION,
             reply_markup=keyboard
         )
         return  
