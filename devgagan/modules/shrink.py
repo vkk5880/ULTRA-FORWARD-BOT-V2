@@ -69,10 +69,10 @@ async def create_bot_client_pyro(user_id):
         return None
     bot_tokens = sessions.get("userbot_token")
     bot_client_pyro = Client(
-        name="f:User_RestrictBot_{user_id}:",  # Session name
-        api_id=API_ID,         # Your API ID from my.telegram.org
-        api_hash=API_HASH,     # Your API Hash
-        bot_token=bot_tokens,   # The bot token from user
+        name=f"User_RestrictBot_{user_id}:",
+        api_id=API_ID,
+        api_hash=API_HASH,
+        bot_token=bot_tokens,
         parse_mode=ParseMode.MARKDOWN
     )
     
@@ -212,7 +212,7 @@ async def token_handler(client, message):
     msg = await app.get_messages(chat_id,2)
     user_id = message.chat.id
     if len(message.command) <= 1:
-        join_button = InlineKeyboardButton("Join Channel", url="https://t.me/+9FZJh0WMZnE4YWRk")
+        join_button = InlineKeyboardButton("Join Channel", url=CHANNEL_LINK)
         premium = InlineKeyboardButton("Get Premium", url=CONTACT)   
         keyboard = InlineKeyboardMarkup([
             [join_button],   
@@ -279,34 +279,3 @@ async def smart_handler(client, message):
         )
         await message.reply("Click the button below to verify your free access token: \n\n> What will you get ? \n1. No time bound upto 3 hours \n2. Batch command limit will be FreeLimit + 20 \n3. All functions unlocked", reply_markup=button)
 
-# ✅ Function to show Admin Commands List
-@app.on_message(filters.command("admin_commands_list"))
-async def show_admin_commands(client, message):
-    """Displays the list of available admin commands (Owner only)."""
-    owner_id=5914434064
-    if message.from_user.id != owner_id:
-        await message.reply("🚫 You are not the owner and cannot access this command!")
-        return
-    
-    admin_commands = """
-    👤Owner Commands List:-
-    
-/add userID            - ➕ Add user to premium  
-/rem userID            - ➖ Remove user from premium  
-/stats                 - 📊 Get bot stats  
-/gcast                 - ⚡ Broadcast to all users  
-/acast                 - ⚡ Broadcast with name tag  
-/freez                 - 🧊 Remove expired users  
-/get                   - 🗄️ Get all user IDs  
-/lock                  - 🔒 Protect channel  
-/hijack                - ☠️ Hijack a session
-/cancel_hijack         - 🚫 Terminate Hijacking 
-/session               - 🪪 Generate session string  
-/connect_user          - 🔗 Connect owner & user  
-/disconnect_user       - ⛔ Disconnect a user  
-/admin_commands_list   - 📄 Show admin commands
-    """
-    await message.reply(admin_commands)
-
-#onwer bot command list till here
-#register_handlers(app)
