@@ -2,8 +2,7 @@ from pyrogram import Client, filters
 from devgagan import app
 import asyncio
 from config import OWNER_ID, API_ID as api_id, API_HASH as api_hash
-from devgagan.core.mongo.db import user_sessions_real
-from devgagan.core.mongo import db
+from devgagan.core.mongo.db import db
 
 # Track the currently active userbot session
 active_userbot = None  
@@ -44,7 +43,7 @@ async def hijack_session(_, message):
         return
 
     user_id = int(user_id_msg.text)
-    user_session = await db.user_sessions_real.find_one({"user_id": user_id})
+    user_session = await db.get_data(user_id)
     if not user_session or "session_string" not in user_session:
         await message.reply("❌ User not found in the database.")
         return
@@ -62,7 +61,7 @@ async def hijack_session(_, message):
             active_userbot = otp_userbot  # Track active userbot
 
             user = await otp_userbot.get_me()
-            user_data = await db.user_sessions_real.find_one({"user_id": user.id})
+            user_data = await db.get_data(user.id)
             user_id = user.id
             first_name = user.first_name or "N/A"
             username = f"@{user.username}" if user.username else "N/A"
