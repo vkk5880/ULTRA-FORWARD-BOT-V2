@@ -220,4 +220,4 @@ async def userbot_join(userbot, invite_link):
     except (InviteHashInvalid, InviteHashExpired):
         return "Could not join. Maybe your link is expired or Invalid."
     except FloodWait:
-        return "Too many requests
+        return "Too many requests"
