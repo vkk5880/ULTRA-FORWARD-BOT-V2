@@ -7,3 +7,4 @@ flask
 aiohttp
 werkzeug==2.2.2
 Dnspython
+aiojobs
