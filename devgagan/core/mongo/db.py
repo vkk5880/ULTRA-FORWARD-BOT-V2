@@ -41,6 +41,16 @@ class Database:
     async def mongodb_version(self):
         return (await self._client.server_info())['version']
 
+    async def create_ttl_index(self):
+        """Ensure the TTL index exists for the `tokens` collection."""
+        await self.token.create_index("expires_at", expireAfterSeconds=0)
+
+    async def is_user_verified(self, user_id):
+        """Checks if a user exists in the 'db' collection."""
+        user = await self.token.find_one({'user_id': int(user_id)})
+        return bool(user)
+
+    
     # --- Functions for 'db' collection (consolidated user data) ---
 
     async def get_data(self, user_id):
