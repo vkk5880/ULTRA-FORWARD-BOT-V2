@@ -10,7 +10,6 @@ from datetime import datetime, timedelta
 from motor.motor_asyncio import AsyncIOMotorClient
 from config import MONGO_DB, WEBSITE_URL, AD_API, CONTACT, LOG_GROUP  
 from config import MONGO_DB as MONGODB_CONNECTION_STRING, LOG_GROUP, OWNER_ID, STRING, API_ID, CONTACT, API_HASH, CHANNEL_LINK
-from pyrogram.types import Message 
 from config import LOG_GROUP
 import re
 from devgagan.core.mongo import db
@@ -20,7 +19,7 @@ import sys # Import sys for standard output
 from pyrogram import filters, Client
 import pymongo
 from devgagan.core.mongo.db import db
-
+from pyrogram.types import Message, CallbackQuery
  
  
 async def create_ttl_index():
