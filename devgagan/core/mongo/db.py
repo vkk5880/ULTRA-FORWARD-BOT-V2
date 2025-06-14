@@ -20,7 +20,7 @@ DEFAULT_CONFIGS = {
 
 
 
-from config import MONGO_DB, Config
+from config import MONGO_DB, DB_NAME
 from motor.motor_asyncio import AsyncIOMotorClient
 from pymongo import MongoClient
 import json
@@ -31,8 +31,8 @@ import os
 class Database:
     def __init__(self, uri, database_name):
         self._client = AsyncIOMotorClient(uri)
-        self.db = self._client[database_name].db # Renamed from .users_data_db
-
+        self.db = self._client[database_name].db
+        self.token = self._client[database_name].token
         self.bots = self._client[database_name].bots
         self.user_bots = self._client[database_name].user_bots
         self.notify = self._client[database_name].notify
@@ -380,4 +380,4 @@ class Database:
 
 
 # Initialize the Database instance for use throughout your application
-db = Database(Config.DB_URL, Config.DB_NAME)
+db = Database(MONGO_DB, DB_NAME)
