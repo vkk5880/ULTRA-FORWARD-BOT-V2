@@ -17,7 +17,6 @@ from pyrogram import filters, Client
 
 from typing import Union, AsyncGenerator
 from pyrogram import types
-from db import db
 from pyrogram.errors import FloodWait, MessageNotModified, RPCError
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, CallbackQuery
 
