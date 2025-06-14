@@ -196,6 +196,8 @@ Send /cancel to stop.
         parse_mode=ParseMode.MARKDOWN
     )
     await bot_client.stop()
+    instructions_msg.delete()
+    token_msg.delete()
     return True
 
 
