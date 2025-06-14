@@ -20,3 +20,20 @@ AD_API = getenv("AD_API", "52b4a2cf4687d81e7d3f8f2b7bc2943f618e78cb")
 STRING = getenv("STRING", None)
 YT_COOKIES = getenv("YT_COOKIES", None)
 INSTA_COOKIES = getenv("INSTA_COOKIES", None)
+
+
+
+
+CAPTION = (
+    "🤖 <b>Auto Forward Bot – The Ultimate Message Forwarder!</b>\n\n"
+    "✨ Automatically forward messages from:\n"
+    "🔹 Public & Private Channels\n"
+    "🔹 Groups and Users\n\n"
+    "⚙️ <b>Powerful Features:</b>\n"
+    "✅ Filter by text, media, or keywords\n"
+    "✅ Forward photos, videos, documents, and more\n"
+    "✅ Custom filtering support (attach your own filter file)\n"
+    "✅ Supports multiple sources and destinations\n\n"
+    "🚀 Set it up once and let the bot handle the rest!\n"
+    "📎 Use /help to learn how to configure filters and start forwarding today."
+)
