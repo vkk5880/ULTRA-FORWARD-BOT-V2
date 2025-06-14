@@ -23,7 +23,7 @@ async def run(bot, message):
     user_id = message.from_user.id
     bot_data = await db.get_bot(user_id)
 
-    if not bot_data and not bot_data.get('bot_token'): # or userbot_session for userbot
+    if not bot_data or not bot_data.get('bot_token'): # or userbot_session for userbot
         initial_msg = await message.reply("You haven't added any bots yet. Please add a bot using /settings or /addbot before trying to forward messages.")
         await asyncio.sleep(5)
         await initial_msg.delete()
