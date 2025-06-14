@@ -152,11 +152,16 @@ Send /cancel to stop.
         return False
 
     try:
-        bot_client = Client(name=f"userbot_{user_id}", bot_token=token)
+        bot_client = Client(
+         name=f"userbot_{user_id}",
+         api_id=API_ID,
+         api_hash=API_HASH,
+         bot_token=token
+        )
         await bot_client.start()
         bot_info = await bot_client.get_me()
     except Exception as e:
-        await token_msg.reply(f"❌ Failed to start bot:\n`{e}`", parse_mode="markdown")
+        await token_msg.reply(f"❌ Failed to start bot:\n`{e}`", parse_mode=ParseMode.MARKDOWN)
         return False
 
     details = {
