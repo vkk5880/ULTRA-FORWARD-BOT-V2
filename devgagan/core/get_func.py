@@ -171,6 +171,7 @@ async def copy_message(client, message, to_id, configs, stats, status_msg):
                 caption=caption,
                 reply_markup=configs.get('button'),
                 protect_content=configs.get('protect', False)
+            )
         else:
             await client.copy_message(
                 chat_id=to_id,
