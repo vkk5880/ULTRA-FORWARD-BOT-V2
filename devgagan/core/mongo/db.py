@@ -263,11 +263,11 @@ class Database:
         await self.db.update_one({'user_id': int(user_id)}, {'$set': {'configs': configs}})
 
     async def update_configs_for_all(self, configs: dict):
-    """Updates the 'configs' field for all users in the database."""
-    await self.db.update_many(
-        {},  # empty filter matches all documents
-        {'$set': {'configs': configs}}
-    )
+        """Updates the 'configs' field for all users in the database."""
+        await self.db.update_many(
+            {},  # empty filter matches all documents
+            {'$set': {'configs': configs}}
+        )
 
     async def get_configs(self, user_id):
         """Retrieves the configuration settings for a user, or defaults if not set."""
