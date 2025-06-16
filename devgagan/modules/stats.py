@@ -1,19 +1,3 @@
-# ---------------------------------------------------
-# File Name: stats.py
-# Description: A Pyrogram bot for downloading files from Telegram channels or groups 
-#              and uploading them back to Telegram.
-# Author: Gagan
-# GitHub: https://github.com/devgaganin/
-# Telegram: https://t.me/team_spy_pro
-# YouTube: https://youtube.com/@dev_gagan
-# Created: 2025-01-11
-# Last Modified: 2025-01-11
-# Version: 2.0.5
-# License: MIT License
-# ---------------------------------------------------
-
-
-
 import time
 import sys
 import motor
@@ -78,4 +62,18 @@ async def stats(client, message):
 🎨 **Python Version**: `{sys.version.split()[0]}`
 📑 **Mongo Version**: `{motor.version}`
 """)
-  
+
+
+
+
+
+
+@Client.on_message(filters.private & filters.command(["donate", "d"]))
+async def donate(client, message):
+	text = "<b>🥲 Thanks For Showing Interest In Donation! ❤️</b> \n\nIf You Like My Bots & Projects, You Can 🎁 Donate Me Any Amount From 10 Rs Upto Your Choice. \n\n<b>🛍 UPI ID:</b> <code>vijayk882481@oksbi</code>"
+	keybord = InlineKeyboardMarkup([
+        			[InlineKeyboardButton("🦋 Admin",url = "https://t.me/Vijaychoudhary88"), 
+        			InlineKeyboardButton("✖️ Close",callback_data = "close_btn") ]])
+	await message.reply_text(text = text,reply_markup = keybord)
+
+
